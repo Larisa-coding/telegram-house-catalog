@@ -1,0 +1,14 @@
+{
+  "name": "telegram-house-catalog",
+  "version": "1.0.0",
+  "description": "Telegram Mini App для каталога домов",
+  "scripts": {
+    "install-backend": "cd backend && npm install",
+    "start": "cd backend && node server.js",
+    "dev": "cd backend && nodemon server.js",
+    "test-parser": "cd backend && node test-parser.js"
+  },
+  "keywords": ["telegram", "webapp", "catalog", "houses"],
+  "author": "",
+  "license": "ISC"
+}

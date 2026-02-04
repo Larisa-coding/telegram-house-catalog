@@ -1,0 +1,10 @@
+{
+  "name": "Каталог уютных домов",
+  "short_name": "Дома",
+  "description": "Каталог проектов домов от ИП Юрова Любовь Владимировна",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "orientation": "portrait"
+}

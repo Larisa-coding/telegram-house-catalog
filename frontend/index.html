@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Каталог уютных домов</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>🏠 Каталог уютных домов</h1>
+    </header>
+
+    <div class="filters">
+      <div class="filter-group">
+        <label for="material-filter">Материал:</label>
+        <select id="material-filter">
+          <option value="">Все</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="area-filter">Площадь: <span id="area-value">50-350 м²</span></label>
+        <div class="range-inputs">
+          <input type="number" id="min-area" placeholder="От" min="50" max="350" value="50">
+          <input type="number" id="max-area" placeholder="До" min="50" max="350" value="350">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label for="search-filter">Поиск:</label>
+        <input type="text" id="search-filter" placeholder="Название проекта...">
+      </div>
+
+      <button id="reset-filters" class="btn-reset">Сбросить фильтры</button>
+    </div>
+
+    <div id="loading" class="loading">Загрузка...</div>
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div id="projects-grid" class="projects-grid"></div>
+
+    <div id="load-more" class="load-more" style="display: none;">
+      <button class="btn-load-more">Загрузить еще</button>
+    </div>
+  </div>
+
+  <div id="modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
