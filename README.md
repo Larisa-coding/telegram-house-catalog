@@ -2,6 +2,10 @@
 
 Полнофункциональное приложение для каталога домов с парсингом данных с сайта строим.дом.рф.
 
+## 🚀 Быстрый деплой на Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/new?repository=https://github.com/Larisa-coding/telegram-house-catalog)
+
 ## Структура проекта
 
 ```
