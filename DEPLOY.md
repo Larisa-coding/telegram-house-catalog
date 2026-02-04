@@ -2,25 +2,33 @@
 
 ## Шаг 1: Деплой на GitHub
 
-1. Инициализируйте git репозиторий:
+1. **Создайте репозиторий на GitHub** (если еще не создан):
+   - Перейдите на https://github.com/new
+   - Войдите в аккаунт **larisa_coding**
+   - Название: `telegram-house-catalog`
+   - **НЕ** создавайте README, .gitignore или лицензию
+   - Нажмите "Create repository"
+
+2. **Обновите remote и запушьте код**:
 ```bash
-cd "/Users/vladasmalioris/Desktop/уютный дом телега"
-git init
+# Если remote уже существует, но репозиторий не найден:
+git remote remove origin
+
+# Добавьте remote заново (после создания репозитория на GitHub)
+git remote add origin https://github.com/larisa_coding/telegram-house-catalog.git
+
+# Проверьте, что все файлы закоммичены
+git status
+
+# Если есть незакоммиченные изменения:
 git add .
 git commit -m "Initial commit: Telegram House Catalog"
-```
 
-2. Создайте репозиторий на GitHub (larisa_coding):
-   - Перейдите на https://github.com/new
-   - Название: `telegram-house-catalog`
-   - Создайте репозиторий
-
-3. Подключите и запушьте:
-```bash
-git remote add origin https://github.com/larisa_coding/telegram-house-catalog.git
-git branch -M main
+# Запушьте код
 git push -u origin main
 ```
+
+**Примечание**: Если возникнет ошибка аутентификации, используйте Personal Access Token вместо пароля (см. GITHUB_SETUP.md)
 
 ## Шаг 2: Настройка Railway
 
