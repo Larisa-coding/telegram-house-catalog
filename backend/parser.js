@@ -278,6 +278,7 @@ const declenseBedroom = (n) => {
 const generateDescription = (project) => {
   const badges = [];
   if (project.bedrooms != null) badges.push(declenseBedroom(project.bedrooms));
+  if (project.material) badges.push(project.material.charAt(0).toUpperCase() + project.material.slice(1));
   badges.push('Кухня-гостиная');
   if (project.has_terrace) badges.push('Терраса');
   if (project.has_garage) badges.push('Гараж');
