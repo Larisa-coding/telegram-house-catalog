@@ -252,6 +252,47 @@ app.get('/api/telegram/webhook-info', async (req, res) => {
   }
 });
 
+// Endpoint для переустановки webhook
+app.post('/api/telegram/reinstall-webhook', async (req, res) => {
+  try {
+    if (!bot) {
+      return res.json({ error: 'Bot not initialized' });
+    }
+    
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || '';
+    if (!publicBaseUrl) {
+      return res.json({ error: 'PUBLIC_BASE_URL not set' });
+    }
+    
+    let webhookBaseUrl = publicBaseUrl;
+    if (!webhookBaseUrl.startsWith('http')) {
+      webhookBaseUrl = `https://${webhookBaseUrl}`;
+    }
+    const webhookUrl = `${webhookBaseUrl}/api/telegram/webhook`;
+    
+    // Удаляем старый webhook
+    await bot.deleteWebHook();
+    console.log('Old webhook deleted');
+    
+    // Устанавливаем новый
+    await bot.setWebHook(webhookUrl);
+    console.log(`Webhook reinstalled: ${webhookUrl}`);
+    
+    // Проверяем статус
+    const info = await bot.getWebHookInfo();
+    
+    res.json({ 
+      success: true, 
+      message: 'Webhook reinstalled',
+      webhookUrl,
+      webhookInfo: info 
+    });
+  } catch (error) {
+    console.error('Error reinstalling webhook:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   if (process.env.TELEGRAM_BOT_TOKEN) {

@@ -126,9 +126,21 @@ const createBot = () => {
     }
     const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
 
+    // Сначала удаляем старый webhook, потом устанавливаем новый
     bot
-      .setWebHook(webhookUrl)
-      .then(() => console.log(`Telegram webhook set: ${webhookUrl}`))
+      .deleteWebHook()
+      .then(() => {
+        console.log('Old webhook deleted');
+        return bot.setWebHook(webhookUrl);
+      })
+      .then(() => {
+        console.log(`Telegram webhook set: ${webhookUrl}`);
+        // Проверяем статус webhook
+        return bot.getWebHookInfo();
+      })
+      .then((info) => {
+        console.log('Webhook info:', JSON.stringify(info, null, 2));
+      })
       .catch((err) => console.error('Failed to set Telegram webhook:', err.message));
   } else {
     console.log('Telegram bot started (polling mode)');
