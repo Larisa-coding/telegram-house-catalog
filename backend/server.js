@@ -26,12 +26,22 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 // Webhook endpoint for Telegram (нужен только в webhook режиме)
 app.post('/api/telegram/webhook', (req, res) => {
   try {
-    if (!bot) return res.sendStatus(503);
+    console.log('=== Webhook received ===');
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    
+    if (!bot) {
+      console.error('Bot not initialized');
+      return res.sendStatus(503);
+    }
+    
+    // Обрабатываем обновление
     bot.processUpdate(req.body);
-    return res.sendStatus(200);
+    
+    // Отвечаем сразу, чтобы Telegram не повторял запрос
+    res.sendStatus(200);
   } catch (error) {
     console.error('Telegram webhook error:', error);
-    return res.sendStatus(500);
+    res.sendStatus(500);
   }
 });
 
@@ -219,6 +229,19 @@ app.get('/api/materials', async (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Webhook info endpoint (для проверки статуса webhook)
+app.get('/api/telegram/webhook-info', async (req, res) => {
+  try {
+    if (!bot) {
+      return res.json({ error: 'Bot not initialized' });
+    }
+    const info = await bot.getWebHookInfo();
+    res.json({ success: true, webhookInfo: info });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
