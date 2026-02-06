@@ -292,8 +292,8 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const proxyImg = (url) => url && url.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(url)}` : url;
-  const imageUrl = proxyImg(firstImg) || 'https://via.placeholder.com/400x300?text=Дом';
+  const imageUrl = firstImg || 'https://via.placeholder.com/400x300?text=Дом';
+  const proxyUrl = firstImg && firstImg.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(firstImg)}` : '';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -309,8 +309,8 @@ const createProjectCard = (project) => {
   
   card.innerHTML = `
     <div class="project-image-container">
-      <img src="${imageUrl}" alt="${project.name}" class="project-image" 
-           onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
+      <img src="${imageUrl}" data-proxy="${proxyUrl || ''}" alt="${project.name}" class="project-image" 
+           onerror="if(this.dataset.proxy){this.src=this.dataset.proxy;this.dataset.proxy=''}else{this.src='https://via.placeholder.com/400x300?text=Нет+фото'}">
       <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${projId}, this)" title="Добавить в избранное">
         ${favoriteIcon}
       </button>
@@ -364,28 +364,22 @@ const showProjectDetails = async (projectId) => {
     const mainImage = getFirstHouseImage(houseImagesOnly) || getFirstHouseImage(allImages) || allImages[0];
     const otherImages = houseImagesOnly.filter((src) => src !== mainImage);
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
-    const proxyImg = (url) => {
-      if (!url || !url.startsWith('http')) return url;
-      return `${API_URL}/proxy-image?url=${encodeURIComponent(url)}`;
+    const proxy = (url) => url && url.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(url)}` : '';
+    const imgTag = (url, cls = '') => {
+      if (!url || !url.startsWith('http')) return '';
+      const prox = proxy(url);
+      return `<img src="${url}" data-proxy="${prox}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="if(this.dataset.proxy){this.src=this.dataset.proxy;this.dataset.proxy=''}">`;
     };
     const modalImagesHtml = mainImage ? `
-      <img src="${proxyImg(mainImage)}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
-      ${otherImages.length > 0 ? `
-        <div class="modal-images">
-          ${otherImages.map((img) =>
-            `<img src="${proxyImg(img)}" alt="${escapeHtml(project.name)}" onerror="this.style.display='none'">`
-          ).join('')}
-        </div>
-      ` : ''}
+      ${imgTag(mainImage, 'modal-image')}
+      ${otherImages.length > 0 ? `<div class="modal-images">${otherImages.map((img) => imgTag(img)).join('')}</div>` : ''}
     ` : '';
 
     const floorPlansHtml = floorPlans.length > 0 ? `
       <div class="modal-floor-plans">
         <h4 class="modal-floor-plans-title">Планировки</h4>
         <div class="modal-floor-plans-grid">
-          ${floorPlans.map((url) =>
-            `<img src="${proxyImg(url)}" alt="План этажа" class="modal-floor-plan-img" onerror="this.style.display='none'">`
-          ).join('')}
+          ${floorPlans.map((url) => imgTag(url, 'modal-floor-plan-img')).join('')}
         </div>
       </div>
     ` : '';

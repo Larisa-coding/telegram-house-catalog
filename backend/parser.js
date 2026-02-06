@@ -446,7 +446,7 @@ const parseProject = async (projectId, options = {}) => {
       } else if (idx === 0) { /* уже первая */ }
     }
 
-    // 4. ВСЕ рендеры из __NEXT_DATA__ realization.imageFileIds (HTML содержит только 3, здесь — все)
+    // 4. ВСЕ рендеры из __NEXT_DATA__ realization.imageFileIds (если есть — дополняем/заменяем HTML)
     try {
       const nextData = JSON.parse($('script#__NEXT_DATA__').html() || '{}');
       const entities = nextData?.props?.pageProps?.initialState?.detailEntities?.project?.entities || {};
@@ -454,17 +454,22 @@ const parseProject = async (projectId, options = {}) => {
       const renderIds = realization?.imageFileIds || [];
       const resizerBase = `${BASE_URL}/resizer/v2/image`;
       if (renderIds.length > 0) {
-        housePhotos.length = 0;
-        seen.clear();
+        const fromNext = [];
         renderIds.forEach((fid) => {
           const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
           if (hex.length >= 10) {
             const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
-            const url = `${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`;
-            seen.add(url);
-            housePhotos.push(url);
+            fromNext.push(`${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
           }
         });
+        if (fromNext.length > 0) {
+          housePhotos.length = 0;
+          seen.clear();
+          fromNext.forEach((url) => {
+            seen.add(url);
+            housePhotos.push(url);
+          });
+        }
       }
     } catch (e) { /* ignore */ }
 
