@@ -42,8 +42,8 @@ const isFavorite = (projectId) => {
 };
 
 const updateFavoritesCount = () => {
-  const count = getFavorites().length;
-  document.getElementById('favorites-count').textContent = count;
+  const el = document.getElementById('favorites-count');
+  if (el) el.textContent = getFavorites().length;
 };
 
 // Инициализация Telegram WebApp
@@ -134,7 +134,14 @@ const loadProjects = async (reset = false) => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let data = {};
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        await response.text();
+        throw new Error(`Сервер вернул не JSON (${response.status}). Проверьте /api/projects`);
+      }
 
       if (!response.ok) {
         throw new Error(data?.error || `Ошибка ${response.status}`);
@@ -389,18 +396,25 @@ const loadMaterials = async () => {
 
 // Сброс фильтров
 const resetFilters = () => {
-  document.getElementById('material-filter').value = '';
-  document.getElementById('min-area').value = '50';
-  document.getElementById('max-area').value = '350';
-  document.getElementById('search-filter').value = '';
+  const material = document.getElementById('material-filter');
+  const minArea = document.getElementById('min-area');
+  const maxArea = document.getElementById('max-area');
+  const search = document.getElementById('search-filter');
+  if (material) material.value = '';
+  if (minArea) minArea.value = '50';
+  if (maxArea) maxArea.value = '350';
+  if (search) search.value = '';
   loadProjects(true);
 };
 
 // Обновление значения площади
 const updateAreaValue = () => {
-  const min = document.getElementById('min-area').value;
-  const max = document.getElementById('max-area').value;
-  document.getElementById('area-value').textContent = `${min}-${max} м²`;
+  const min = document.getElementById('min-area');
+  const max = document.getElementById('max-area');
+  const areaValue = document.getElementById('area-value');
+  if (min && max && areaValue) {
+    areaValue.textContent = `${min.value}-${max.value} м²`;
+  }
 };
 
 // Escape HTML
@@ -411,8 +425,10 @@ const escapeHtml = (text) => {
 };
 
 // Закрытие модального окна
-document.querySelector('.close').addEventListener('click', () => {
-  document.getElementById('modal').style.display = 'none';
+const closeEl = document.querySelector('.close');
+if (closeEl) closeEl.addEventListener('click', () => {
+  const modal = document.getElementById('modal');
+  if (modal) modal.style.display = 'none';
 });
 
 window.addEventListener('click', (e) => {
@@ -422,15 +438,19 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// События
-document.getElementById('material-filter').addEventListener('change', () => loadProjects(true));
-document.getElementById('min-area').addEventListener('input', updateAreaValue);
-document.getElementById('min-area').addEventListener('change', () => loadProjects(true));
-document.getElementById('max-area').addEventListener('input', updateAreaValue);
-document.getElementById('max-area').addEventListener('change', () => loadProjects(true));
-document.getElementById('search-filter').addEventListener('input', debounce(() => loadProjects(true), 500));
-document.getElementById('reset-filters').addEventListener('click', resetFilters);
-document.getElementById('load-more').addEventListener('click', () => loadProjects(false));
+// События — с проверкой существования элементов
+const safeAddListener = (id, event, handler) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener(event, handler);
+};
+safeAddListener('material-filter', 'change', () => loadProjects(true));
+safeAddListener('min-area', 'input', updateAreaValue);
+safeAddListener('min-area', 'change', () => loadProjects(true));
+safeAddListener('max-area', 'input', updateAreaValue);
+safeAddListener('max-area', 'change', () => loadProjects(true));
+safeAddListener('search-filter', 'input', debounce(() => loadProjects(true), 500));
+safeAddListener('reset-filters', 'click', resetFilters);
+safeAddListener('load-more', 'click', () => loadProjects(false));
 
 // Debounce функция
 const debounce = (func, wait) => {
@@ -445,36 +465,7 @@ const debounce = (func, wait) => {
   };
 };
 
-// Сворачивание/разворачивание фильтров
-const toggleFiltersPanel = () => {
-  const toggle = document.getElementById('filters-toggle');
-  const filters = document.getElementById('filters');
-  if (!toggle || !filters) return;
-  const isExpanded = filters.classList.toggle('expanded');
-  toggle.classList.toggle('collapsed', !isExpanded);
-  toggle.setAttribute('aria-expanded', isExpanded);
-  filters.setAttribute('aria-hidden', !isExpanded);
-};
-
-window.toggleFiltersPanel = toggleFiltersPanel;
-
-const handleFiltersToggle = (e) => {
-  if (e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  toggleFiltersPanel();
-};
-
-const filtersToggleEl = document.getElementById('filters-toggle');
-if (filtersToggleEl) {
-  filtersToggleEl.setAttribute('aria-expanded', 'false');
-  filtersToggleEl.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    handleFiltersToggle(e);
-  });
-}
+// Фильтры теперь работают через checkbox+label (чистый HTML/CSS)
 
 // Переключение избранного
 const toggleProjectFavorite = (projectId, button) => {
@@ -492,10 +483,9 @@ const toggleProjectFavorite = (projectId, button) => {
 const showFavorites = () => {
   showFavoritesOnly = !showFavoritesOnly;
   const btn = document.getElementById('favorites-btn');
-  if (showFavoritesOnly) {
-    btn.classList.add('active');
-  } else {
-    btn.classList.remove('active');
+  if (btn) {
+    if (showFavoritesOnly) btn.classList.add('active');
+    else btn.classList.remove('active');
   }
   loadProjects(true);
 };
@@ -520,7 +510,7 @@ const openTelegramLink = (prefillText) => {
 const openTelegram = () => openTelegramLink(TELEGRAM_AUTO_TEXT);
 
 // События для header кнопок
-document.getElementById('favorites-btn').addEventListener('click', showFavorites);
+safeAddListener('favorites-btn', 'click', showFavorites);
 
 const telegramBtn = document.getElementById('telegram-btn');
 if (telegramBtn) {

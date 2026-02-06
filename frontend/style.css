@@ -145,12 +145,28 @@ body {
   white-space: nowrap;
 }
 
-/* Сворачиваемый фильтр */
+/* Сворачиваемый фильтр — чистый HTML/CSS через checkbox */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .filters-container {
   margin-bottom: 20px;
 }
 
 .filters-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
   background: var(--glass-bg);
   backdrop-filter: blur(10px);
@@ -183,9 +199,6 @@ body {
   pointer-events: none;
 }
 
-.filters-toggle.collapsed .filters-arrow {
-  transform: rotate(-90deg);
-}
 
 .filters {
   background: var(--glass-bg);
@@ -196,12 +209,19 @@ body {
   margin-top: 10px;
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow);
-  display: none !important;
+  display: none;
 }
 
-.filters.expanded,
-.filters[aria-hidden="false"] {
-  display: block !important;
+#filters-checkbox:checked ~ .filters {
+  display: block;
+}
+
+#filters-checkbox:checked ~ .filters-toggle .filters-arrow {
+  transform: rotate(0deg);
+}
+
+#filters-checkbox:not(:checked) ~ .filters-toggle .filters-arrow {
+  transform: rotate(-90deg);
 }
 
 .filter-group {

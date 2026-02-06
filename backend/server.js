@@ -48,7 +48,10 @@ const trackUser = async (user) => {
   }
 };
 
-// Явные маршруты для HTML (на случай, если static не отдаёт на части хостингов)
+// Явные маршруты для HTML
+app.get('/', (req, res) => {
+  res.sendFile(path.join(frontendDir, 'index.html'));
+});
 app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(frontendDir, 'admin.html'));
 });
