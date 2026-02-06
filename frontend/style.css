@@ -409,7 +409,7 @@ body {
   height: 100%;
   object-fit: contain;
   object-position: center;
-  background: linear-gradient(135deg, var(--mint-color) 0%, var(--mint-darker) 100%);
+  background: #FBFCFC;
 }
 
 .favorite-btn {
@@ -640,7 +640,7 @@ body {
   margin-bottom: 20px;
   padding: 12px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  background: #f8f9fa;
+  background: #FBFCFC;
 }
 
 .modal-name {
@@ -686,7 +686,7 @@ body {
   border-radius: 12px;
   padding: 8px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  background: #f8f9fa;
+  background: #FBFCFC;
 }
 
 /* Responsive */
