@@ -177,13 +177,13 @@ body {
   background: rgba(168, 216, 213, 0.2);
 }
 
-.filters-toggle::after {
-  content: '▼';
+.filters-toggle .filters-arrow {
   font-size: 12px;
   transition: transform 0.3s;
+  pointer-events: none;
 }
 
-.filters-toggle.collapsed::after {
+.filters-toggle.collapsed .filters-arrow {
   transform: rotate(-90deg);
 }
 
@@ -196,11 +196,12 @@ body {
   margin-top: 10px;
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow);
-  display: none;
+  display: none !important;
 }
 
-.filters.expanded {
-  display: block;
+.filters.expanded,
+.filters[aria-hidden="false"] {
+  display: block !important;
 }
 
 .filter-group {
@@ -288,6 +289,14 @@ body {
   border-radius: 12px;
   margin-bottom: 20px;
   border: 1px solid rgba(214, 40, 40, 0.2);
+}
+
+.empty-catalog {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-light);
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .projects-grid {

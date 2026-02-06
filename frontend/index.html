@@ -28,10 +28,11 @@
     </header>
 
     <div class="filters-container">
-      <button type="button" class="filters-toggle collapsed" id="filters-toggle" aria-label="Показать или скрыть фильтры">
+      <button type="button" class="filters-toggle collapsed" id="filters-toggle" aria-label="Показать или скрыть фильтры" onclick="window.toggleFiltersPanel && window.toggleFiltersPanel()">
         <span>Фильтры</span>
+        <span class="filters-arrow" aria-hidden="true">▼</span>
       </button>
-      <div class="filters" id="filters">
+      <div class="filters" id="filters" aria-hidden="true">
       <div class="filter-group">
         <label for="material-filter">Материал:</label>
         <select id="material-filter">

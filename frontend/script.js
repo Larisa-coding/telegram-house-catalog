@@ -72,8 +72,21 @@ const loadProjects = async (reset = false) => {
   }
 
   isLoading = true;
-  document.getElementById('loading').style.display = 'block';
-  document.getElementById('error').style.display = 'none';
+  const loadingEl = document.getElementById('loading');
+  const errorEl = document.getElementById('error');
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (errorEl) errorEl.style.display = 'none';
+
+  const loadingTimeout = setTimeout(() => {
+    if (isLoading && loadingEl) {
+      loadingEl.style.display = 'none';
+      if (errorEl) {
+        errorEl.textContent = 'Загрузка заняла слишком много времени. Проверьте интернет и обновите страницу.';
+        errorEl.style.display = 'block';
+      }
+      isLoading = false;
+    }
+  }, 30000);
 
   try {
     let projects = [];
@@ -82,11 +95,12 @@ const loadProjects = async (reset = false) => {
       // Загружаем избранные проекты
       const favorites = getFavorites();
       if (favorites.length === 0) {
+        clearTimeout(loadingTimeout);
         document.getElementById('projects-grid').innerHTML = 
-          '<div style="text-align: center; padding: 40px; color: #6C757D;">У вас пока нет избранных проектов</div>';
+          '<div class="empty-catalog">У вас пока нет избранных проектов</div>';
         document.getElementById('load-more').style.display = 'none';
         isLoading = false;
-        document.getElementById('loading').style.display = 'none';
+        if (loadingEl) loadingEl.style.display = 'none';
         return;
       }
       
@@ -125,18 +139,24 @@ const loadProjects = async (reset = false) => {
       if (!response.ok) {
         throw new Error(data?.error || `Ошибка ${response.status}`);
       }
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Ошибка загрузки');
+
+      const rawData = data && typeof data === 'object' ? data : {};
+      if (!rawData.success) {
+        throw new Error(rawData.error || 'Ошибка загрузки');
       }
-      
-      projects = data.data;
+
+      projects = Array.isArray(rawData.data) ? rawData.data : [];
       hasMore = projects.length === 9;
     }
 
     if (projects.length === 0 && currentOffset === 0) {
-      document.getElementById('projects-grid').innerHTML = 
-        '<div style="text-align: center; padding: 40px; color: #6C757D;">Проекты не найдены</div>';
+      const grid = document.getElementById('projects-grid');
+      const emptyMsg = showFavoritesOnly
+        ? 'У вас пока нет избранных проектов'
+        : 'Каталог пока пуст. Добавьте проекты через <a href="/admin.html" style="color: var(--mint-border);">админ-панель</a> или подождите загрузки.';
+      if (grid) {
+        grid.innerHTML = `<div class="empty-catalog">${emptyMsg}</div>`;
+      }
       hasMore = false;
     } else {
       renderProjects(projects);
@@ -150,7 +170,7 @@ const loadProjects = async (reset = false) => {
     let errMsg = error.message;
     if (error.name === 'AbortError') {
       errMsg = 'Превышено время ожидания. Проверьте интернет.';
-    } else if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+    } else if (typeof error.message === 'string' && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
       errMsg = 'Нет связи с сервером. Убедитесь, что приложение открыто с правильного адреса.';
     }
     const errEl = document.getElementById('error');
@@ -161,13 +181,14 @@ const loadProjects = async (reset = false) => {
     if (currentOffset === 0) {
       const grid = document.getElementById('projects-grid');
       if (grid) {
-        grid.innerHTML = '<div style="text-align: center; padding: 40px; color: #6C757D;">Не удалось загрузить проекты. <a href="' + window.location.href + '" style="color: var(--mint-border);">Обновить</a></div>';
+        grid.innerHTML = '<div class="empty-catalog">Не удалось загрузить проекты. <a href="" onclick="location.reload(); return false;" style="color: var(--mint-border);">Обновить</a></div>';
       }
     }
   } finally {
+    clearTimeout(loadingTimeout);
     isLoading = false;
-    const loadingEl = document.getElementById('loading');
-    if (loadingEl) loadingEl.style.display = 'none';
+    const loadingElFinal = document.getElementById('loading');
+    if (loadingElFinal) loadingElFinal.style.display = 'none';
   }
 };
 
@@ -311,14 +332,18 @@ const showProjectDetails = async (projectId) => {
 };
 
 const TELEGRAM_MANAGER = 'larissa_malio';
-const TELEGRAM_AUTO_TEXT = 'Добрый день! Пишу из приложения «Каталог уютных домов» — подскажите, пожалуйста 🏠';
+const TELEGRAM_AUTO_TEXT = 'Добрый день! 😊 Пишу из приложения «Каталог уютных домов» — хотелось бы узнать подробнее о проектах. Подскажите, пожалуйста?';
 
 const getTelegramLink = (prefillText) => {
+  const text = prefillText ? encodeURIComponent(prefillText) : '';
   const base = `https://t.me/${TELEGRAM_MANAGER}`;
-  if (prefillText) {
-    return `${base}?text=${encodeURIComponent(prefillText)}`;
-  }
-  return base;
+  return text ? `${base}?text=${text}` : base;
+};
+
+// tg:// для лучшей работы из WebApp (автозаполнение текста)
+const getTelegramNativeLink = (prefillText) => {
+  const text = prefillText ? `&text=${encodeURIComponent(prefillText)}` : '';
+  return `tg://resolve?domain=${TELEGRAM_MANAGER}${text}`;
 };
 
 // Связаться с менеджером
@@ -421,22 +446,34 @@ const debounce = (func, wait) => {
 };
 
 // Сворачивание/разворачивание фильтров
-const handleFiltersToggle = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
+const toggleFiltersPanel = () => {
   const toggle = document.getElementById('filters-toggle');
   const filters = document.getElementById('filters');
   if (!toggle || !filters) return;
-  toggle.classList.toggle('collapsed');
-  filters.classList.toggle('expanded');
-  const isExpanded = filters.classList.contains('expanded');
+  const isExpanded = filters.classList.toggle('expanded');
+  toggle.classList.toggle('collapsed', !isExpanded);
   toggle.setAttribute('aria-expanded', isExpanded);
+  filters.setAttribute('aria-hidden', !isExpanded);
+};
+
+window.toggleFiltersPanel = toggleFiltersPanel;
+
+const handleFiltersToggle = (e) => {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  toggleFiltersPanel();
 };
 
 const filtersToggleEl = document.getElementById('filters-toggle');
 if (filtersToggleEl) {
   filtersToggleEl.setAttribute('aria-expanded', 'false');
   filtersToggleEl.addEventListener('click', handleFiltersToggle);
+  filtersToggleEl.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    handleFiltersToggle(e);
+  }, { passive: false });
 }
 
 // Переключение избранного
@@ -463,18 +500,20 @@ const showFavorites = () => {
   loadProjects(true);
 };
 
-// Открыть ссылку на Telegram (универсально: WebApp и браузер)
+// Открыть ссылку на Telegram (с автозаполнением сообщения)
 const openTelegramLink = (prefillText) => {
-  const link = getTelegramLink(prefillText || TELEGRAM_AUTO_TEXT);
+  const text = prefillText || TELEGRAM_AUTO_TEXT;
   const tg = window.Telegram?.WebApp;
+  // В WebApp используем tg:// — лучше сохраняет ?text=
+  const link = tg ? getTelegramNativeLink(text) : getTelegramLink(text);
   if (tg?.openTelegramLink) {
     try {
       tg.openTelegramLink(link);
     } catch (e) {
-      window.location.href = link;
+      window.location.href = getTelegramLink(text);
     }
   } else {
-    window.open(link, '_blank', 'noopener');
+    window.open(getTelegramLink(text), '_blank', 'noopener');
   }
 };
 
