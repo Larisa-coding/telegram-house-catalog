@@ -1,7 +1,9 @@
-// API — тот же хост, что и страница
+// API — тот же хост, что и страница (важно для Telegram WebView)
 const getApiBase = () => {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (!origin || origin === 'null' || origin.startsWith('file')) return '';
+  if (!origin || origin === 'null' || origin.startsWith('file')) {
+    return ''; // относительный путь /api при открытии через сервер
+  }
   return origin.replace(/\/$/, '');
 };
 const API_URL = getApiBase() + '/api';

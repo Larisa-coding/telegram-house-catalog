@@ -14,13 +14,6 @@ const frontendDir = path.join(__dirname, '../frontend');
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// GET /api/config — base URL для фронта (Telegram WebView может давать неверный origin)
-app.get('/api/config', (req, res) => {
-  const base = process.env.PUBLIC_BASE_URL || req.protocol + '://' + req.get('host');
-  res.json({ apiBase: base.replace(/\/$/, '') });
-});
-
 app.use(express.static(frontendDir));
 
 // Punycode для строим.дом.рф (Node.js лучше работает с ASCII-доменами)
