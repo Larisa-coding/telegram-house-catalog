@@ -51,6 +51,30 @@
     </div>
 
     <div class="admin-card">
+      <h2>Список проектов</h2>
+      <button id="load-projects-btn" class="btn-batch" style="margin-bottom: 1rem;">Загрузить список</button>
+      <div id="projects-list" style="max-height: 300px; overflow-y: auto; font-size: 0.9rem;"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Удалить лишние проекты</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Введи project_id (строим.дом.рф) через запятую — проекты будут удалены из каталога.</p>
+      <form id="delete-batch-form" class="admin-form">
+        <label for="delete-project-ids">ID проектов для удаления</label>
+        <input type="text" id="delete-project-ids" name="projectIds" placeholder="12345, 67890, 11111">
+        <button type="submit" class="btn-batch" id="delete-batch-btn" style="background: #721c24;">Удалить</button>
+      </form>
+      <div id="delete-batch-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Обновить материалы</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Перепарсить все проекты с строим.дом.рф и обновить материал (брус/газобетон) в каталоге.</p>
+      <button id="reparse-materials-btn" class="btn-batch">Обновить материалы всех проектов</button>
+      <div id="reparse-materials-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>База пользователей</h2>
       <button id="load-users-btn" class="btn-batch" style="margin-bottom: 1rem;">Обновить список</button>
       <div id="users-list" style="max-height: 400px; overflow-y: auto;">
@@ -169,6 +193,106 @@
       }
     };
 
+    document.getElementById('delete-batch-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = document.getElementById('delete-project-ids').value.trim();
+      const ids = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean).map((s) => parseInt(s.replace(/\D/g, ''))).filter((n) => !isNaN(n));
+      const btn = document.getElementById('delete-batch-btn');
+      const msg = document.getElementById('delete-batch-msg');
+      if (ids.length === 0) {
+        showMsg(msg, 'Введи хотя бы один project_id.', true);
+        return;
+      }
+      if (!confirm(`Удалить ${ids.length} проект(ов)?`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/delete-batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectIds: ids }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, `Удалено: ${data.deleted} проект(ов).`);
+          document.getElementById('delete-project-ids').value = '';
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById('reparse-materials-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('reparse-materials-btn');
+      const msg = document.getElementById('reparse-materials-msg');
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/reparse-materials`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, `Обновлено: ${data.updated}. Не удалось: ${data.failed?.length || 0}.`, data.failed?.length > 0);
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    const loadProjects = async () => {
+      const list = document.getElementById('projects-list');
+      list.innerHTML = '<p style="color: var(--text-light);">Загрузка...</p>';
+      try {
+        const res = await fetch(`${API_URL}/projects?limit=500`);
+        const data = await res.json();
+        if (data.success && data.data?.length > 0) {
+          const html = `
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: var(--glass-border); text-align: left;">
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">project_id</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Название</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.data.map((p) => `
+                  <tr style="border-bottom: 1px solid var(--glass-border);">
+                    <td style="padding: 0.5rem;">${p.project_id}</td>
+                    <td style="padding: 0.5rem;">${(p.name || '-').substring(0, 50)}</td>
+                    <td style="padding: 0.5rem;"><button type="button" class="btn-batch" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" onclick="deleteProject(${p.project_id}, this)">Удалить</button></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          list.innerHTML = html;
+        } else {
+          list.innerHTML = '<p style="color: var(--text-light);">Проектов нет</p>';
+        }
+      } catch (err) {
+        list.innerHTML = '<p style="color: #721c24;">Ошибка загрузки</p>';
+      }
+    };
+
+    window.deleteProject = async (projectId, btn) => {
+      if (!confirm(`Удалить проект ${projectId}?`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/${projectId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) loadProjects();
+        else alert(data.error || 'Ошибка');
+      } catch (e) {
+        alert('Ошибка сети');
+      }
+      btn.disabled = false;
+    };
+
+    document.getElementById('load-projects-btn').addEventListener('click', loadProjects);
     document.getElementById('load-users-btn').addEventListener('click', loadUsers);
     loadUsers();
   </script>

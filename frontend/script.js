@@ -272,10 +272,17 @@ const isLogoOrIcon = (url) => {
     /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
 };
 
+const isFloorPlan = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.toLowerCase();
+  return /plan|планир|этаж|floor|layout|чертеж|схема/i.test(lower);
+};
+
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
-  const filtered = images.filter((src) => src && !isLogoOrIcon(src));
-  return filtered[0] || images.find((src) => src && !/logo|favicon|icon|уютн/i.test(String(src))) || null;
+  const filtered = images.filter((src) => src && !isLogoOrIcon(src) && !isFloorPlan(src));
+  const fallback = images.find((src) => src && !isLogoOrIcon(src));
+  return filtered[0] || fallback || null;
 };
 
 // Создание карточки проекта

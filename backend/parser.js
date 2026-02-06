@@ -70,19 +70,45 @@ const parseProject = async (projectId, options = {}) => {
       }
     });
 
-    // Материал (ищем в разделе "Конструктивные решения" -> "Материал наружных стен")
+    // Материал — сначала ищем в поле "Материал наружных стен" / "Материал стен"
     let material = null;
     const bodyText = $('body').text();
-    
-    // Ищем конкретные материалы
-    if (bodyText.match(/Материал наружных стен[^]*?брус/i) || 
-        bodyText.match(/Дома из бруса/i) ||
-        bodyText.toLowerCase().includes('брус')) {
-      material = 'брус';
-    } else if (bodyText.match(/Материал наружных стен[^]*?газобетон/i) ||
-               bodyText.match(/Дома из газобетона/i) ||
-               bodyText.toLowerCase().includes('газобетон')) {
-      material = 'газобетон';
+
+    const extractMaterialFromField = () => {
+      let found = null;
+      $('*').each((i, el) => {
+        const text = $(el).text().trim();
+        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test(text) && text.length < 150 && !found) {
+          const next = $(el).next();
+          const nextText = next.text().trim().toLowerCase();
+          const parentText = $(el).parent().text();
+          if (nextText.includes('газобетон') || nextText.includes('газоблок')) { found = 'газобетон'; return false; }
+          if (nextText.includes('брус')) { found = 'брус'; return false; }
+          const match = parentText.match(/Материал[^]*?(газобетон|газоблок|брус)/i);
+          if (match && match[1]) {
+            const val = match[1].toLowerCase();
+            if (val.includes('газобетон') || val.includes('газоблок')) { found = 'газобетон'; return false; }
+            if (val.includes('брус')) { found = 'брус'; return false; }
+          }
+        }
+      });
+      return found;
+    };
+
+    material = extractMaterialFromField();
+
+    if (!material) {
+      const nearMaterial = bodyText.match(/Материал\s+наружных\s+стен[^\n]{0,150}/gi);
+      if (nearMaterial) {
+        const block = nearMaterial.join(' ').toLowerCase();
+        if (block.includes('газобетон') || block.includes('газоблок')) material = 'газобетон';
+        else if (block.includes('брус')) material = 'брус';
+      }
+    }
+
+    if (!material) {
+      if (bodyText.match(/газобетон|газоблок/i)) material = 'газобетон';
+      else if (bodyText.match(/брус/i)) material = 'брус';
     }
 
     // Количество спален (ищем в разделе "Объемно-планировочные решения")
@@ -124,55 +150,62 @@ const parseProject = async (projectId, options = {}) => {
         /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
     };
 
-    const images = [];
-    const seen = new Set();
+    const isFloorPlan = (url) => {
+      if (!url || typeof url !== 'string') return false;
+      const lower = url.toLowerCase();
+      return /plan|планир|этаж|floor|layout|чертеж|схема/i.test(lower);
+    };
 
-    const addImage = (src) => {
-      if (!src || seen.has(src) || isLogoOrIcon(src) || images.length >= 20) return;
+    const seen = new Set();
+    const housePhotos = [];
+    const floorPlans = [];
+
+    const addTo = (arr, src, max = 15) => {
+      if (!src || seen.has(src) || isLogoOrIcon(src) || arr.length >= max) return;
       if (!src.startsWith('http')) {
         src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
       }
       seen.add(src);
-      images.push(src);
+      arr.push(src);
     };
 
-    // 1. Галерея проекта, рендеры домов
+    // 1. Фото домов (рендеры, галерея) — БЕЗ планов этажей
     $('[class*="gallery"], [class*="slider"], [class*="carousel"], [class*="project"] img').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
-      addImage(src);
+      if (src && !isFloorPlan(src)) addTo(housePhotos, src, 12);
     });
 
-    // 2. Планировки этажей (floor plans)
-    $('img[src*="plan"], img[src*="планир"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src');
-      addImage(src);
-    });
-
-    $('[class*="plan"], [class*="floor"], [class*="layout"] img').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src');
-      addImage(src);
-    });
-
-    // 3. Остальные изображения проекта (рендеры)
     $('img').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
-      if (src && (src.includes('project') || src.includes('house') || src.includes('dom') || src.includes('/upload/'))) {
-        addImage(src);
+      if (src && (src.includes('project') || src.includes('house') || src.includes('dom') || src.includes('/upload/')) && !isFloorPlan(src)) {
+        addTo(housePhotos, src, 12);
       }
     });
 
-    while (images.length < 6) {
+    while (housePhotos.length < 6) {
       let added = false;
       $('img').each((i, el) => {
         const src = $(el).attr('src') || $(el).attr('data-src');
-        if (src && src.includes('http') && !isLogoOrIcon(src) && !seen.has(src)) {
-          addImage(src);
+        if (src && src.includes('http') && !isLogoOrIcon(src) && !isFloorPlan(src) && !seen.has(src)) {
+          addTo(housePhotos, src, 12);
           added = true;
           return false;
         }
       });
       if (!added) break;
     }
+
+    // 2. Поэтажные планы (планировки) — отдельно, после фото домов
+    $('img[src*="plan"], img[src*="планир"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src');
+      addTo(floorPlans, src, 10);
+    });
+    $('[class*="plan"], [class*="floor"], [class*="layout"], [class*="планиров"] img').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src');
+      if (src && isFloorPlan(src)) addTo(floorPlans, src, 10);
+    });
+
+    const images = [...housePhotos, ...floorPlans].slice(0, 25);
 
     const projectData = {
       project_id: parseInt(projectId),
