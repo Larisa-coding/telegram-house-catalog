@@ -117,13 +117,19 @@ app.get('/api/projects', async (req, res) => {
       params.push(`%${search}%`);
     }
 
+    const limitNum = parseInt(limit) || 500;
+    const offsetNum = parseInt(offset) || 0;
+
+    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*)');
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0]?.count || 0, 10);
+
     query += ` ORDER BY parsed_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
-    params.push(parseInt(limit), parseInt(offset));
+    params.push(limitNum, offsetNum);
 
     const result = await pool.query(query, params);
-    
-    // Генерируем описания для каждого проекта
-    const projects = result.rows.map(project => ({
+
+    const projects = result.rows.map((project) => ({
       ...project,
       formatted_description: generateDescription(project),
     }));
@@ -131,7 +137,7 @@ app.get('/api/projects', async (req, res) => {
     res.json({
       success: true,
       data: projects,
-      total: projects.length,
+      total,
     });
   } catch (error) {
     console.error('Error fetching projects:', error);

@@ -355,6 +355,13 @@ body {
   border: 1px solid rgba(214, 40, 40, 0.2);
 }
 
+.results-count {
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--mint-darker);
+}
+
 .empty-catalog {
   text-align: center;
   padding: 40px 20px;

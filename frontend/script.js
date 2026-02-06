@@ -25,20 +25,22 @@ const saveFavorites = (favorites) => {
 };
 
 const toggleFavorite = (projectId) => {
+  const id = Number(projectId);
   const favorites = getFavorites();
-  const index = favorites.indexOf(projectId);
+  const index = favorites.findIndex((f) => Number(f) === id);
   if (index > -1) {
     favorites.splice(index, 1);
   } else {
-    favorites.push(projectId);
+    favorites.push(id);
   }
   saveFavorites(favorites);
   updateFavoritesCount();
-  return favorites.includes(projectId);
+  return index === -1;
 };
 
 const isFavorite = (projectId) => {
-  return getFavorites().includes(projectId);
+  const id = Number(projectId);
+  return getFavorites().some((f) => Number(f) === id);
 };
 
 const updateFavoritesCount = () => {
@@ -96,33 +98,27 @@ const loadProjects = async (reset = false) => {
       const favorites = getFavorites();
       if (favorites.length === 0) {
         clearTimeout(loadingTimeout);
-        document.getElementById('projects-grid').innerHTML = 
-          '<div class="empty-catalog">У вас пока нет избранных проектов</div>';
+        const grid = document.getElementById('projects-grid');
+        if (grid) grid.innerHTML = '<div class="empty-catalog">У вас пока нет избранных проектов</div>';
         document.getElementById('load-more').style.display = 'none';
+        showResultsCount(0, false);
         isLoading = false;
         if (loadingEl) loadingEl.style.display = 'none';
         return;
       }
-      
-      // Загружаем проекты по ID из избранного
-      const promises = favorites.map(id => 
+
+      const promises = favorites.map((id) =>
         fetch(`${API_URL}/projects/${id}`)
-          .then(r => r.json())
+          .then((r) => r.json())
           .catch(() => ({ success: false }))
       );
       const results = await Promise.all(promises);
-      projects = results
-        .filter(r => r.success)
-        .map(r => r.data);
-      
-      // Применяем пагинацию
-      const paginatedProjects = projects.slice(currentOffset, currentOffset + 9);
-      hasMore = paginatedProjects.length === 9 && currentOffset + 9 < projects.length;
-      projects = paginatedProjects;
+      projects = results.filter((r) => r.success).map((r) => r.data);
+      hasMore = false;
+      showResultsCount(projects.length, false);
     } else {
-      // Обычная загрузка с фильтрами
       const filters = getFilters();
-      const queryParams = { ...filters, limit: 9, offset: currentOffset };
+      const queryParams = { ...filters, limit: 500, offset: 0 };
       const params = new URLSearchParams();
       Object.entries(queryParams).forEach(([k, v]) => {
         if (v != null && v !== '') params.set(k, String(v));
@@ -153,7 +149,9 @@ const loadProjects = async (reset = false) => {
       }
 
       projects = Array.isArray(rawData.data) ? rawData.data : [];
-      hasMore = projects.length === 9;
+      const totalCount = rawData.total ?? projects.length;
+      hasMore = false;
+      showResultsCount(totalCount, Object.keys(filters).length > 0);
     }
 
     if (projects.length === 0 && currentOffset === 0) {
@@ -164,13 +162,14 @@ const loadProjects = async (reset = false) => {
       if (grid) {
         grid.innerHTML = `<div class="empty-catalog">${emptyMsg}</div>`;
       }
+      showResultsCount(0, false);
       hasMore = false;
     } else {
       renderProjects(projects);
       currentOffset += projects.length;
     }
 
-    document.getElementById('load-more').style.display = hasMore ? 'block' : 'none';
+    document.getElementById('load-more').style.display = 'none';
 
   } catch (error) {
     console.error('Error loading projects:', error);
@@ -196,6 +195,24 @@ const loadProjects = async (reset = false) => {
     isLoading = false;
     const loadingElFinal = document.getElementById('loading');
     if (loadingElFinal) loadingElFinal.style.display = 'none';
+  }
+};
+
+// Показать счётчик найденных объектов
+const showResultsCount = (count, hasFilters) => {
+  const el = document.getElementById('results-count');
+  if (!el) return;
+  if (showFavoritesOnly) {
+    el.textContent = `Избранное: ${count} ${count === 1 ? 'проект' : count < 5 ? 'проекта' : 'проектов'}`;
+    el.style.display = count > 0 ? 'block' : 'none';
+  } else if (hasFilters && count >= 0) {
+    el.textContent = `Найдено ${count} ${count === 1 ? 'объект' : count < 5 ? 'объекта' : 'объектов'}`;
+    el.style.display = 'block';
+  } else if (count >= 0) {
+    el.textContent = `${count} ${count === 1 ? 'проект' : count < 5 ? 'проекта' : 'проектов'}`;
+    el.style.display = count > 0 ? 'block' : 'none';
+  } else {
+    el.style.display = 'none';
   }
 };
 
@@ -255,14 +272,15 @@ const createProjectCard = (project) => {
     ? `${project.price.toLocaleString('ru-RU')} ₽`
     : 'Цена по запросу';
   
-  const favoriteClass = isFavorite(project.id) ? 'active' : '';
-  const favoriteIcon = isFavorite(project.id) ? '❤️' : '🤍';
+  const projId = project.id ?? project.project_id;
+  const favoriteClass = isFavorite(projId) ? 'active' : '';
+  const favoriteIcon = isFavorite(projId) ? '❤️' : '🤍';
   
   card.innerHTML = `
     <div class="project-image-container">
       <img src="${imageUrl}" alt="${project.name}" class="project-image" 
            onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
-      <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${project.id}, this)" title="Добавить в избранное">
+      <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${projId}, this)" title="Добавить в избранное">
         ${favoriteIcon}
       </button>
     </div>
@@ -272,10 +290,10 @@ const createProjectCard = (project) => {
       <div class="project-price">${price}</div>
       <div class="project-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions">
-        <button class="btn btn-primary" onclick="showProjectDetails(${project.id})">
+        <button class="btn btn-primary" onclick="showProjectDetails(${projId})">
           Подробнее
         </button>
-        <button class="btn btn-secondary" onclick="contactManager(${project.id})">
+        <button class="btn btn-secondary" onclick="contactManager(${projId})">
           Связаться
         </button>
       </div>
@@ -470,8 +488,7 @@ const toggleProjectFavorite = (projectId, button) => {
   const isNowFavorite = toggleFavorite(projectId);
   button.className = `favorite-btn ${isNowFavorite ? 'active' : ''}`;
   button.innerHTML = isNowFavorite ? '❤️' : '🤍';
-  
-  // Если показываем только избранное, обновляем список
+  updateFavoritesCount();
   if (showFavoritesOnly) {
     loadProjects(true);
   }
