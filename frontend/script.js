@@ -278,10 +278,13 @@ const isFloorPlan = (url) => {
   return /plan|планир|этаж|floor|layout|чертеж|схема/i.test(lower);
 };
 
+const isTinyThumbnail = (url) => /width=32|width=64|height=32|height=64/.test(url || '');
+
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
-  const filtered = images.filter((src) => src && !isLogoOrIcon(src) && !isFloorPlan(src));
-  return filtered[0] || images.find((src) => src && !isLogoOrIcon(src)) || images[0] || null;
+  const filtered = images.filter((src) => src && !isLogoOrIcon(src) && !isFloorPlan(src) && !isTinyThumbnail(src));
+  const fallback = images.find((src) => src && !isLogoOrIcon(src) && !isTinyThumbnail(src));
+  return filtered[0] || fallback || images[0] || null;
 };
 
 // Создание карточки проекта
