@@ -24,9 +24,14 @@ const createBot = () => {
     polling: !isWebhookMode,
   });
 
+  console.log(`Bot initialized in ${isWebhookMode ? 'webhook' : 'polling'} mode`);
+  console.log(`WEB_APP_URL: ${WEB_APP_URL}`);
+
   // /start
   bot.onText(/\/start/, (msg) => {
-    console.log('Received /start command from:', msg.chat.id);
+    console.log('=== /start command received ===');
+    console.log('Chat ID:', msg.chat.id);
+    console.log('From:', msg.from?.username || msg.from?.first_name);
     const chatId = msg.chat.id;
 
     const welcomeText =
@@ -40,26 +45,34 @@ const createBot = () => {
       '💬 Связаться с менеджером одним кликом\n\n' +
       'Нажми «Открыть каталог» — и найди свой идеальный дом! 🏡';
 
+    // Убеждаемся, что URL без пробелов
+    const cleanWebAppUrl = WEB_APP_URL.trim();
+    console.log('WEB_APP_URL:', JSON.stringify(cleanWebAppUrl));
+    
     const replyMarkup = {
       inline_keyboard: [
         [
           {
             text: '🏠 Открыть каталог',
-            web_app: { url: WEB_APP_URL },
+            web_app: { url: cleanWebAppUrl },
           },
         ],
       ],
     };
 
     if (!START_IMAGE_URL) {
-      bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup });
+      bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup })
+        .then(() => console.log('Welcome message sent successfully'))
+        .catch((err) => console.error('Error sending welcome message:', err));
       return;
     }
 
     bot.sendPhoto(chatId, START_IMAGE_URL, {
       caption: welcomeText,
       reply_markup: replyMarkup,
-    });
+    })
+      .then(() => console.log('Welcome photo sent successfully'))
+      .catch((err) => console.error('Error sending welcome photo:', err));
   });
 
   bot.on('callback_query', (query) => {
@@ -72,13 +85,14 @@ const createBot = () => {
       const projectId = data.replace('project_', '');
       bot.answerCallbackQuery(query.id, { text: 'Открываю детали проекта...' });
 
+      const projectUrl = `${WEB_APP_URL.trim()}?project=${projectId}`;
       bot.sendMessage(chatId, '🏠 Открываю проект...', {
         reply_markup: {
           inline_keyboard: [
             [
               {
                 text: '📋 Посмотреть проект',
-                web_app: { url: `${WEB_APP_URL}?project=${projectId}` },
+                web_app: { url: projectUrl },
               },
             ],
           ],
