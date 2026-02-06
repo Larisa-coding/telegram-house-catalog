@@ -378,6 +378,26 @@ app.delete('/api/projects/:project_id', async (req, res) => {
   }
 });
 
+// POST /api/projects/delete-by-names - удалить проекты по частичному совпадению названия
+app.post('/api/projects/delete-by-names', async (req, res) => {
+  try {
+    let names = req.body?.names;
+    if (!Array.isArray(names)) names = typeof names === 'string' ? [names] : [];
+    names = names.map((n) => String(n).trim()).filter(Boolean);
+    if (names.length === 0) {
+      return res.status(400).json({ success: false, error: 'Укажите names: массив названий для удаления' });
+    }
+    const result = await pool.query(
+      `DELETE FROM projects WHERE ${names.map((_, i) => `name ILIKE $${i + 1}`).join(' OR ')} RETURNING project_id, name`,
+      names.map((n) => `%${n}%`)
+    );
+    res.json({ success: true, deleted: result.rowCount, ids: result.rows.map((r) => r.project_id) });
+  } catch (error) {
+    console.error('Error delete-by-names:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/projects/delete-batch - удалить несколько проектов по project_id
 app.post('/api/projects/delete-batch', async (req, res) => {
   try {
@@ -399,33 +419,45 @@ app.post('/api/projects/delete-batch', async (req, res) => {
   }
 });
 
-// POST /api/reparse-materials - перепарсить все проекты для обновления материала
+// POST /api/reparse-materials - перепарсить все проекты (запуск в фоне, без таймаута)
 app.post('/api/reparse-materials', async (req, res) => {
   try {
     const projects = await pool.query('SELECT project_id FROM projects ORDER BY id');
-    const results = { updated: 0, failed: [] };
-    for (const row of projects.rows) {
-      const projectId = row.project_id;
-      const projectData = await parseProject(String(projectId), { skipContractorCheck: true });
-      if (!projectData) {
-        results.failed.push(projectId);
-        continue;
-      }
-      await pool.query(
-        `UPDATE projects SET material=$1, name=$2, area=$3, price=$4, bedrooms=$5,
-         has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
-         description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
-        [
-          projectData.material, projectData.name, projectData.area, projectData.price,
-          projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
-          projectData.has_second_floor, projectData.has_terrace, projectData.description,
-          JSON.stringify(projectData.images), projectData.url, projectData.project_id,
-        ]
-      );
-      results.updated += 1;
-      await new Promise((r) => setTimeout(r, 600));
+    const ids = projects.rows.map((r) => r.project_id);
+    if (ids.length === 0) {
+      return res.json({ success: true, updated: 0, failed: [], message: 'Проектов нет' });
     }
-    res.json({ success: true, ...results });
+    res.json({ success: true, message: `Обновление запущено для ${ids.length} проектов. Подождите 2–5 мин, обновите каталог.`, started: ids.length });
+    setImmediate(async () => {
+      let updated = 0;
+      const failed = [];
+      for (const projectId of ids) {
+        try {
+          const projectData = await parseProject(String(projectId), { skipContractorCheck: true });
+          if (!projectData) {
+            failed.push(projectId);
+            continue;
+          }
+          await pool.query(
+            `UPDATE projects SET material=$1, name=$2, area=$3, price=$4, bedrooms=$5,
+             has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
+             description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+            [
+              projectData.material, projectData.name, projectData.area, projectData.price,
+              projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
+              projectData.has_second_floor, projectData.has_terrace, projectData.description,
+              JSON.stringify(projectData.images), projectData.url, projectData.project_id,
+            ]
+          );
+          updated += 1;
+        } catch (e) {
+          failed.push(projectId);
+          console.error(`Reparse project ${projectId}:`, e.message);
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      console.log(`Reparse done: updated ${updated}, failed ${failed.length}`);
+    });
   } catch (error) {
     console.error('Error reparse-materials:', error);
     res.status(500).json({ success: false, error: error.message });

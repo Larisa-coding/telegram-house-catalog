@@ -272,22 +272,19 @@ Lotus ВФ
       const btn = document.getElementById('reparse-materials-btn');
       const msg = document.getElementById('reparse-materials-msg');
       btn.disabled = true;
-      msg.textContent = 'Идёт обновление (2–5 мин)...';
+      msg.textContent = 'Запуск обновления...';
       msg.className = 'admin-msg success';
       msg.style.display = 'block';
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300000);
-        const res = await fetch(`${API_URL}/reparse-materials`, { method: 'POST', signal: controller.signal });
-        clearTimeout(timeoutId);
+        const res = await fetch(`${API_URL}/reparse-materials`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          showMsg(msg, `Обновлено: ${data.updated}. Не удалось: ${data.failed?.length || 0}.`, data.failed?.length > 0);
+          showMsg(msg, data.message || `Обновление запущено для ${data.started || 0} проектов. Подождите 2–5 мин, обновите каталог.`);
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
         }
       } catch (err) {
-        showMsg(msg, err.name === 'AbortError' ? 'Превышено время ожидания. Проверьте сервер.' : 'Ошибка сети или сервера.', true);
+        showMsg(msg, 'Ошибка сети или сервера.', true);
       }
       btn.disabled = false;
     });
