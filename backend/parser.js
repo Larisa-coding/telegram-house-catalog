@@ -77,8 +77,8 @@ const parseProject = async (projectId, options = {}) => {
     const extractMaterial = () => {
       const setFromVal = (val) => {
         const v = String(val).toLowerCase();
-        if (/газобетон|газоблок|газоблочный/.test(v)) { material = 'газобетон'; return true; }
-        if (/\bбрус\b|клееный брус|профилированный брус/.test(v)) { material = 'брус'; return true; }
+        if (/газобетон|газоблок|газоблочный|газобетонные/.test(v)) { material = 'газобетон'; return true; }
+        if (/\bбрус\b|клееный брус|профилированный брус|брусовой|из бруса/.test(v)) { material = 'брус'; return true; }
         return false;
       };
 
@@ -103,9 +103,9 @@ const parseProject = async (projectId, options = {}) => {
       });
       if (material) return;
 
-      // 3. Контекст "Материал наружных стен: XXX" — только ближайшие 80 символов
-      const near = bodyText.match(/Материал\s+наружных\s+стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|$|Площадь|Спальни|м²)/i);
-      if (near && setFromVal(near[1])) return;
+      // 3. Контекст "Материал наружных стен" или "Материал стен"
+      const near = bodyText.match(/Материал\s+(наружных\s+)?стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|$|Площадь|Спальни|м²)/i);
+      if (near && setFromVal(near[2] || near[1])) return;
 
       // 4. [class*="value"] рядом с "Материал"
       $('[class*="param"], [class*="characteristic"], [class*="spec"]').each((i, el) => {
@@ -121,22 +121,20 @@ const parseProject = async (projectId, options = {}) => {
       // 5. Fallback: поиск по тексту страницы — приоритет газобетона, если оба
       const nearMaterial = bodyText.match(/Материал\s+наружных\s+стен[^]*?([а-яёА-ЯЁ\-]+)/i);
       if (nearMaterial && setFromVal(nearMaterial[1])) return;
-      if (/газобетон|газоблок|газоблочный/i.test(bodyText)) material = 'газобетон';
-      else if (/\bбрус\b|клееный брус|профилированный брус/i.test(bodyText)) material = 'брус';
+      if (/газобетон|газоблок|газоблочный|газобетонные/i.test(bodyText)) material = 'газобетон';
+      else if (/\bбрус\b|клееный брус|профилированный брус|брусовой|из бруса/i.test(bodyText)) material = 'брус';
     };
 
     extractMaterial();
 
-    // Количество спален (ищем в разделе "Объемно-планировочные решения")
+    // Количество спален
     let bedrooms = null;
-    $('*').each((i, el) => {
-      const text = $(el).text();
-      // Ищем "Спальни: X" или "Спальни\nX"
-      const match = text.match(/Спальни[:\s]+(\d+)/i);
-      if (match && !bedrooms) {
-        bedrooms = parseInt(match[1]);
-      }
-    });
+    const bedroomsMatch = bodyText.match(/Спальни[:\s\-—]+(\d+)/i) ||
+      bodyText.match(/Количество\s+спален[:\s\-—]+(\d+)/i) ||
+      bodyText.match(/спален[:\s\-—]+(\d+)/i) ||
+      bodyText.match(/(\d+)\s*спален(?!и)/i) ||
+      bodyText.match(/(\d+)\s*спальн/i);
+    if (bedroomsMatch) bedrooms = parseInt(bedroomsMatch[1]);
 
     // Характеристики (ищем в разделе "Объемно-планировочные решения")
     const bodyTextLower = bodyText.toLowerCase();
@@ -162,8 +160,8 @@ const parseProject = async (projectId, options = {}) => {
     const isLogoOrIcon = (url) => {
       if (!url) return true;
       const lower = url.toLowerCase();
-      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|contractor|catalogue|katalog|placeholder|default|noimage|watermark|nophoto|no-photo/.test(lower) ||
-        /\/icons?\/|\/logo\/|\/contractor\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
+      return /logo|favicon|icon\.(png|svg|jpg|gif)|emblem|sprite|banner|button|watermark|nophoto/.test(lower) ||
+        /\/icons?\/|\/logo\/|\/favicon\.|logo\.(png|svg|jpg|jpeg|gif)/.test(lower);
     };
 
     const isFloorPlan = (url) => {
@@ -172,50 +170,41 @@ const parseProject = async (projectId, options = {}) => {
       return /plan|планир|этаж|floor|layout|чертеж|схема/i.test(lower);
     };
 
-    const isInLogoArea = (el) => {
-      if (!el) return false;
-      const $el = $(el);
-      const $parent = $el.closest('[class*="header"], [class*="nav"], [class*="logo"], [class*="brand"], [id*="header"], [id*="logo"], [class*="contractor"]');
-      if ($parent.length) return true;
-      const alt = ($el.attr('alt') || '').toLowerCase();
-      const title = ($el.attr('title') || '').toLowerCase();
-      return /уютн|каталог|логотип|logo/.test(alt) || /уютн|каталог|логотип|logo/.test(title);
-    };
-
     const seen = new Set();
     const housePhotos = [];
     const floorPlans = [];
 
-    const addTo = (arr, src, max, el) => {
-      if (!src || seen.has(src) || isLogoOrIcon(src) || (el && isInLogoArea(el)) || arr.length >= max) return;
+    const addTo = (arr, src, max, skipLogo = true) => {
+      if (!src || seen.has(src) || arr.length >= max) return;
+      if (skipLogo && isLogoOrIcon(src)) return;
       if (!src.startsWith('http')) {
-        src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
+        src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src.startsWith('/') ? src : '/' + src}`;
       }
       seen.add(src);
       arr.push(src);
     };
 
-    // 1. Галерея, слайдер, карусель — основные фото домов
-    $('[class*="gallery"], [class*="slider"], [class*="carousel"], [class*="project-gallery"], [class*="project"] img').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
-      if (src && !isFloorPlan(src)) addTo(housePhotos, src, 25, el);
+    const getImgSrc = (el) => $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(/\s+/)[0];
+
+    // 1. Все img — сначала фото (upload, iblock, project, house)
+    $('img').each((i, el) => {
+      const src = getImgSrc(el);
+      if (src && !isFloorPlan(src) && (src.includes('/upload/') || src.includes('iblock') || src.includes('project') || src.includes('house') || src.includes('.jpg') || src.includes('.jpeg') || src.includes('.png') || src.includes('.webp'))) {
+        addTo(housePhotos, src, 30);
+      }
     });
 
-    // 2. Все img с /upload/, project, house, dom — fallback
-    if (housePhotos.length < 6) {
-      $('img').each((i, el) => {
-        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
-        if (src && (src.includes('/upload/') || src.includes('project') || src.includes('house') || src.includes('/dom/') || src.includes('iblock')) && !isFloorPlan(src)) {
-          addTo(housePhotos, src, 25, el);
-        }
-      });
-    }
+    // 2. Галерея, слайдер — дополнительно
+    $('[class*="gallery"], [class*="slider"], [class*="carousel"] img').each((i, el) => {
+      const src = getImgSrc(el);
+      if (src && !isFloorPlan(src)) addTo(housePhotos, src, 30);
+    });
 
-    // 3. Любые img с http (кроме логотипов по URL)
-    if (housePhotos.length < 3) {
+    // 3. Любые img с http (fallback)
+    if (housePhotos.length < 5) {
       $('img').each((i, el) => {
-        const src = $(el).attr('src') || $(el).attr('data-src');
-        if (src && src.includes('http') && !isFloorPlan(src)) addTo(housePhotos, src, 25, el);
+        const src = getImgSrc(el);
+        if (src && (src.startsWith('http') || src.startsWith('//') || src.startsWith('/'))) addTo(housePhotos, src, 30);
       });
     }
 
@@ -233,19 +222,19 @@ const parseProject = async (projectId, options = {}) => {
     });
     if ($planRoot && $planRoot.length) {
       $planRoot.find('img').each((i, el) => {
-        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
-        if (src) addTo(floorPlans, src, 25, el);
+        const src = getImgSrc(el);
+        if (src) addTo(floorPlans, src, 25);
       });
     }
 
     // 5. Дополнительно: img с plan/планир/этаж в src или alt
     $('img[src*="plan"], img[src*="планир"], img[src*="этаж"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src');
-      if (src) addTo(floorPlans, src, 25, el);
+      const src = getImgSrc(el);
+      if (src) addTo(floorPlans, src, 25);
     });
     $('[class*="plan"], [class*="floor"], [class*="layout"], [class*="планиров"] img').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src');
-      if (src && isFloorPlan(src)) addTo(floorPlans, src, 25, el);
+      const src = getImgSrc(el);
+      if (src && isFloorPlan(src)) addTo(floorPlans, src, 25);
     });
 
     const images = [...housePhotos, ...floorPlans].slice(0, 50);

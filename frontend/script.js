@@ -268,8 +268,8 @@ const renderProjects = (projects) => {
 const isLogoOrIcon = (url) => {
   if (!url || typeof url !== 'string') return true;
   const lower = url.toLowerCase();
-  return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|watermark|уютн|contractor|catalogue|katalog|placeholder|default|noimage|каталог|nophoto|no-photo/.test(lower) ||
-    /\/icons?\/|\/logo\/|\/contractor\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
+  return /logo|favicon|icon\.(png|svg|gif)|emblem|sprite|banner|watermark|nophoto/.test(lower) ||
+    /\/icons?\/|\/logo\/|favicon\.|logo\.(png|svg|jpg|jpeg|gif)/.test(lower);
 };
 
 const isFloorPlan = (url) => {
@@ -281,8 +281,7 @@ const isFloorPlan = (url) => {
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
   const filtered = images.filter((src) => src && !isLogoOrIcon(src) && !isFloorPlan(src));
-  const fallback = images.find((src) => src && !isLogoOrIcon(src));
-  return filtered[0] || fallback || null;
+  return filtered[0] || images.find((src) => src && !isLogoOrIcon(src)) || images[0] || null;
 };
 
 // Создание карточки проекта
