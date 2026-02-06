@@ -7,7 +7,8 @@ let WEB_APP_URL = (process.env.WEB_APP_URL || 'https://your-app.railway.app').tr
 if (WEB_APP_URL && !WEB_APP_URL.startsWith('http')) {
   WEB_APP_URL = `https://${WEB_APP_URL}`;
 }
-const START_IMAGE_URL = process.env.START_IMAGE_URL;
+// Если START_IMAGE_URL не задан, используем локальный файл через статику
+const START_IMAGE_URL = process.env.START_IMAGE_URL || `${WEB_APP_URL}/images/welcome.jpg`;
 
 /**
  * Создает бота в режиме:
@@ -67,19 +68,32 @@ const createBot = () => {
       ],
     };
 
-    if (!START_IMAGE_URL) {
+    // Проверяем, что START_IMAGE_URL это валидный HTTP/HTTPS URL
+    const hasValidImageUrl = START_IMAGE_URL && 
+                             (START_IMAGE_URL.startsWith('http://') || START_IMAGE_URL.startsWith('https://'));
+
+    if (!hasValidImageUrl) {
+      console.log('Sending welcome message without photo (no valid image URL)');
       bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup })
         .then(() => console.log('Welcome message sent successfully'))
         .catch((err) => console.error('Error sending welcome message:', err));
       return;
     }
 
+    console.log('Sending welcome photo:', START_IMAGE_URL);
     bot.sendPhoto(chatId, START_IMAGE_URL, {
       caption: welcomeText,
       reply_markup: replyMarkup,
     })
       .then(() => console.log('Welcome photo sent successfully'))
-      .catch((err) => console.error('Error sending welcome photo:', err));
+      .catch((err) => {
+        console.error('Error sending welcome photo:', err.message);
+        // Если фото не отправилось, отправляем только текст
+        console.log('Falling back to text-only message');
+        bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup })
+          .then(() => console.log('Welcome message sent successfully (fallback)'))
+          .catch((err2) => console.error('Error sending fallback message:', err2));
+      });
   });
 
   bot.on('callback_query', (query) => {
