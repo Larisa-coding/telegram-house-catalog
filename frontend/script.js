@@ -192,19 +192,19 @@ const loadProjects = async (reset = false) => {
   }
 };
 
-// Получение фильтров
+// Получение фильтров (по умолчанию не ограничиваем площадь — показываем все проекты)
 const getFilters = () => {
   const filters = {};
   
   const material = document.getElementById('material-filter').value;
   if (material) filters.material = material;
 
-  const minArea = document.getElementById('min-area').value;
-  const maxArea = document.getElementById('max-area').value;
-  if (minArea) filters.minArea = minArea;
-  if (maxArea) filters.maxArea = maxArea;
+  const minArea = document.getElementById('min-area')?.value;
+  const maxArea = document.getElementById('max-area')?.value;
+  if (minArea && minArea !== '50') filters.minArea = minArea;
+  if (maxArea && maxArea !== '350') filters.maxArea = maxArea;
 
-  const search = document.getElementById('search-filter').value.trim();
+  const search = document.getElementById('search-filter')?.value?.trim() || '';
   if (search) {
     // Если поиск - число, ищем по project_id, иначе по названию
     if (/^\d+$/.test(search)) {
@@ -469,11 +469,11 @@ const handleFiltersToggle = (e) => {
 const filtersToggleEl = document.getElementById('filters-toggle');
 if (filtersToggleEl) {
   filtersToggleEl.setAttribute('aria-expanded', 'false');
-  filtersToggleEl.addEventListener('click', handleFiltersToggle);
-  filtersToggleEl.addEventListener('touchend', (e) => {
+  filtersToggleEl.addEventListener('click', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     handleFiltersToggle(e);
-  }, { passive: false });
+  });
 }
 
 // Переключение избранного

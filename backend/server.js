@@ -98,13 +98,13 @@ app.get('/api/projects', async (req, res) => {
 
     if (minArea) {
       paramCount++;
-      query += ` AND area >= $${paramCount}`;
+      query += ` AND (area IS NULL OR area >= $${paramCount})`;
       params.push(parseFloat(minArea));
     }
 
     if (maxArea) {
       paramCount++;
-      query += ` AND area <= $${paramCount}`;
+      query += ` AND (area IS NULL OR area <= $${paramCount})`;
       params.push(parseFloat(maxArea));
     }
 
