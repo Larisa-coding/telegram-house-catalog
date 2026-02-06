@@ -6,75 +6,168 @@ const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
 
 /**
- * Парсит материал наружных стен строго из HTML страницы.
- * Ищет строку/блок с "Материал стен", "Материал наружных стен" и берёт значение из соседней ячейки.
+ * ТОЧНЫЙ материал наружных стен — ТОЛЬКО из HTML, без догадок.
+ * Ищет блок/таблицу с "Материал", "Стены", "Наружных стен" и берёт значение из соседней ячейки.
  * @param {string} html - HTML страницы проекта
  * @returns {string|null} - точное значение материала или null, если не найдено
  */
-const parseMaterialFromPage = (html) => {
+const parseMaterial = (html) => {
   const $ = cheerio.load(html);
-  const labelPattern = /Материал\s+(наружных\s+)?стен/i;
-
+  const labelPattern = /Материал\s+(наружных\s+)?стен|Материал\s+стен/i;
   const empty = (v) => !v || v === '—' || v === '-';
 
-  // 1. Content_general_item — плашка "Материал стен" + значение во втором p
+  const takeVal = (val) => (val && !empty(String(val).trim()) ? String(val).trim() : null);
+
+  let found = null;
+
+  // 1. Content_general_item — плашка "Материал стен"
   const contentItem = $('[class*="Content_general_item"], [class*="Content_general__item"]').filter((i, el) => {
     const ps = $(el).find('p');
-    if (ps.length < 2) return false;
-    return labelPattern.test(ps.eq(0).text().trim());
+    return ps.length >= 2 && labelPattern.test(ps.eq(0).text().trim());
   });
   if (contentItem.length) {
-    const val = contentItem.first().find('p').eq(1).text().trim();
-    if (!empty(val)) return val;
+    const val = takeVal(contentItem.first().find('p').eq(1).text());
+    if (val) return val;
   }
 
-  // 2. Table_row — "Материал наружных стен" → вторая колонка (Table_col)
-  let found = null;
+  // 3. Table_row — "Материал наружных стен" → вторая колонка
   $('[class*="Table_row"]').each((i, el) => {
     if (found) return;
-    const txt = $(el).text();
-    if (!labelPattern.test(txt)) return;
+    if (!labelPattern.test($(el).text())) return;
     const cols = $(el).find('[class*="Table_col"]');
     const val = cols.eq(1).find('[class*="ValueWithHint_hint_content"]').text().trim() ||
       cols.eq(1).find('p').last().text().trim() ||
       cols.eq(1).text().trim();
-    if (!empty(val)) found = val;
+    const v = takeVal(val);
+    if (v) found = v;
   });
   if (found) return found;
 
-  // 3. dt/dd — <dt>Материал наружных стен</dt><dd>...</dd>
+  // 4. th:contains("материал") + td, dt/dd
+  $('th').each((i, el) => {
+    if (found) return;
+    if (!labelPattern.test($(el).text())) return;
+    const v = takeVal($(el).next('td').text() || $(el).siblings('td').first().text());
+    if (v) found = v;
+  });
   $('dt').each((i, el) => {
     if (found) return;
     if (!labelPattern.test($(el).text())) return;
-    const val = $(el).next('dd').text().trim();
-    if (!empty(val)) found = val;
+    const v = takeVal($(el).next('dd').text());
+    if (v) found = v;
   });
   if (found) return found;
 
-  // 4. tr/td — таблица, td с "Материал" → соседняя ячейка
+  // 5. tr td — ячейка с "Материал" → соседняя ячейка
   $('tr').each((i, el) => {
     if (found) return;
     const cells = $(el).find('td, th');
     for (let j = 0; j < cells.length - 1; j++) {
       if (labelPattern.test($(cells[j]).text().trim()) && $(cells[j]).text().trim().length < 80) {
-        const val = $(cells[j + 1]).text().trim();
-        if (!empty(val)) { found = val; return; }
+        const val = takeVal($(cells[j + 1]).text());
+        if (val) { found = val; return; }
       }
     }
   });
   if (found) return found;
 
-  // 5. p + next p — <p>Материал стен</p><p>Газобетон</p>
+  // 6. p + next p
   $('p').each((i, el) => {
     if (found) return;
     const label = $(el).text().trim();
     if (labelPattern.test(label) && label.length < 40) {
-      const val = $(el).next('p').text().trim();
-      if (!empty(val)) found = val;
+      const v = takeVal($(el).next('p').text());
+      if (v) found = v;
     }
   });
 
   return found || null;
+};
+
+/**
+ * ВСЕ фото из раздела "Поэтажный план" — без пропусков.
+ * Ищет секцию с "Поэтажный план" / PlanList_plan и возвращает все img.
+ * @param {string} html - HTML страницы
+ * @returns {string[]} - массив URL планов этажей
+ */
+const parseFloorPlans = (html) => {
+  const $ = cheerio.load(html);
+  const resizerBase = `${BASE_URL}/resizer/v2/image`;
+  const upgradeUrl = (url) => {
+    if (!url || typeof url !== 'string') return url;
+    const s = url.replace(/width=\d+/, 'width=1200').replace(/quality=\d+/, 'quality=90');
+    if (!s.startsWith('http')) return s.startsWith('//') ? `https:${s}` : `${BASE_URL}${s.startsWith('/') ? s : '/' + s}`;
+    return s;
+  };
+  const seen = new Set();
+  const plans = [];
+
+  const addPlan = (src) => {
+    if (!src) return;
+    const u = upgradeUrl(src);
+    if (seen.has(u)) return;
+    seen.add(u);
+    plans.push(u);
+  };
+
+  // 1. Раздел "Поэтажный план" — строим.дом.рф: PlanList_plan; или h2/h3 с "Поэтажный план"
+  let planSection = $('[class*="PlanList_plan"], [class*="PlanList_plar"], [class*="PlanList"]').first();
+  if (!planSection.length) {
+    planSection = $('h2, h3, h4').filter((i, el) => /поэтажн|план\s*этаж/i.test($(el).text())).first();
+  }
+  if (planSection.length) {
+    const $container = planSection.has('img').length ? planSection : planSection.parent();
+    $container.find('img').each((i, el) => {
+      const s = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('srcset')?.split(/\s+/)[0];
+      if (s && (s.includes('resizer') || /\.(jpg|jpeg|png|webp)/i.test(s))) addPlan(s);
+    });
+  }
+
+  // 2. PlanList_plan, swiper-slide — строим.дом.рф
+  $('[class*="PlanList_plan"], [class*="PlanList_plar"], [class*="swiper-slide"] img').each((i, el) => {
+    const alt = ($(el).attr('alt') || '').toLowerCase();
+    if (!/план|этаж/.test(alt)) return;
+    const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('srcset')?.split(/\s+/)[0];
+    if (src) addPlan(src);
+  });
+
+  // 3. img alt="План 1 этажа", "План 2 этажа" и т.д.
+  $('img[alt*="План"], img[alt*="план"]').each((i, el) => {
+    const alt = ($(el).attr('alt') || '').toLowerCase();
+    if (!/этаж/.test(alt)) return;
+    const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('srcset')?.split(/\s+/)[0];
+    if (src) addPlan(src);
+  });
+
+  // 4. __NEXT_DATA__ projectPlans.imageFileIds
+  if (plans.length === 0) {
+    try {
+      const nextData = JSON.parse($('script#__NEXT_DATA__').html() || '{}');
+      const findPlans = (obj) => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj.projectPlans && Array.isArray(obj.projectPlans)) return obj;
+        for (const k of Object.keys(obj)) {
+          const r = findPlans(obj[k]);
+          if (r) return r;
+        }
+        return null;
+      };
+      const proj = findPlans(nextData?.props?.pageProps?.initialState || {});
+      if (proj?.projectPlans) {
+        proj.projectPlans.forEach((p) => {
+          (p.imageFileIds || []).forEach((fid) => {
+            const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
+            if (hex.length >= 10) {
+              const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
+              addPlan(`${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
+            }
+          });
+        });
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  return plans;
 };
 
 /**
@@ -135,7 +228,7 @@ const parseProject = async (projectId, options = {}) => {
       }
     });
 
-    const material = parseMaterialFromPage(response.data);
+    const material = parseMaterial(response.data);
 
     // Цена (ищем "от X ₽")
     let price = null;
@@ -304,81 +397,14 @@ const parseProject = async (projectId, options = {}) => {
       } else if (idx === 0) { /* уже первая */ }
     }
 
-    // 4. ПОЭТАЖНЫЕ ПЛАНЫ — PlanList_plan_switcher, img alt="План 1 этажа" / "План 2 этажа"
-    // Один этаж — только план 1, два этажа — план 1 и план 2 (если есть на странице)
-    const upgradePlanUrl = (url) => {
-      if (!url || typeof url !== 'string') return url;
-      return url.replace(/width=\d+/, 'width=1200').replace(/quality=\d+/, 'quality=90').replace(/dpr=[\d.]+/, 'dpr=1.5');
-    };
-    const addFloorPlan = (src) => {
-      if (!src || seen.has(src)) return;
-      let s = upgradePlanUrl(src);
-      if (!s.startsWith('http')) s = s.startsWith('//') ? `https:${s}` : `${BASE_URL}${s.startsWith('/') ? s : '/' + s}`;
-      seen.add(s);
-      floorPlans.push(s);
-    };
-    const plan1Imgs = [];
-    const plan2Imgs = [];
-    $('[class*="PlanList_plan"], [class*="PlanList_plar"], [class*="swiper-slide"] img').each((i, el) => {
-      const alt = ($(el).attr('alt') || '').toLowerCase();
-      const src = getImgSrc(el);
-      if (!src) return;
-      if (/план\s*1\s*этаж|план\s*первого\s*этаж|1\s*этаж/.test(alt)) plan1Imgs.push(src);
-      else if (/план\s*2\s*этаж|план\s*второго\s*этаж|2\s*этаж/.test(alt)) plan2Imgs.push(src);
+    // 4. ВСЕ ФОТО из раздела "Поэтажный план" — parseFloorPlans
+    const parsedPlans = parseFloorPlans(response.data);
+    parsedPlans.forEach((url) => {
+      if (!seen.has(url)) {
+        seen.add(url);
+        floorPlans.push(url);
+      }
     });
-    if (plan1Imgs.length > 0) addFloorPlan(plan1Imgs[0]);
-    if (hasSecondFloor && plan2Imgs.length > 0) addFloorPlan(plan2Imgs[0]);
-    if (floorPlans.length === 0) {
-      let fbPlan1 = null;
-      let fbPlan2 = null;
-      $('img[alt*="План"], img[alt*="план"]').each((i, el) => {
-        const alt = ($(el).attr('alt') || '').toLowerCase();
-        const src = getImgSrc(el);
-        if (!src || !/этаж/.test(alt)) return;
-        const isPlan2 = /2\s*этаж|второго\s*этаж/.test(alt);
-        if (isPlan2) { if (hasSecondFloor && !fbPlan2) fbPlan2 = src; }
-        else if (!fbPlan1) fbPlan1 = src;
-      });
-      if (fbPlan1) addFloorPlan(fbPlan1);
-      if (hasSecondFloor && fbPlan2) addFloorPlan(fbPlan2);
-    }
-    if (floorPlans.length === 0) {
-      try {
-        const nextDataEl = $('script#__NEXT_DATA__');
-        if (nextDataEl.length) {
-          const nextData = JSON.parse(nextDataEl.html());
-          const findProject = (obj) => {
-            if (!obj || typeof obj !== 'object') return null;
-            if (obj.projectPlans && Array.isArray(obj.projectPlans)) return obj;
-            for (const k of Object.keys(obj)) {
-              const found = findProject(obj[k]);
-              if (found) return found;
-            }
-            return null;
-          };
-          const project = findProject(nextData?.props?.pageProps?.initialState || {});
-          if (project?.projectPlans) {
-            const resizerBase = `${BASE_URL}/resizer/v2/image`;
-            const maxPlans = hasSecondFloor ? 2 : 1;
-            let count = 0;
-            for (const p of project.projectPlans) {
-              if (count >= maxPlans) break;
-              for (const fid of (p.imageFileIds || [])) {
-                if (count >= maxPlans) break;
-                const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
-                if (hex.length >= 10) {
-                  const pairs = hex.match(/.{2}/g) || [];
-                  const imageUrl = pairs.join('%2F');
-                  const url = `${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`;
-                  addFloorPlan(url);
-                  count++;
-                }
-              }
-            }
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
 
     const images = [...housePhotos, ...floorPlans].slice(0, 50);
 
@@ -437,4 +463,4 @@ const generateDescription = (project) => {
   return `${badgesStr}\n\n${poetic}`;
 };
 
-module.exports = { parseProject, generateDescription, parseMaterialFromPage };
+module.exports = { parseProject, generateDescription, parseMaterial, parseFloorPlans };
