@@ -427,28 +427,8 @@ const contactManager = (projectId) => {
   openTelegramLink(TELEGRAM_AUTO_TEXT);
 };
 
-// Загрузка дополнительных материалов из БД (Брус и Газобетон уже в HTML)
-const loadMaterials = async () => {
-  try {
-    const select = document.getElementById('material-filter');
-    if (!select) return;
-    const existing = ['', 'брус', 'газобетон'];
-    const response = await fetch(`${API_URL}/materials`);
-    const data = await response.json();
-    if (data.success && data.data?.length > 0) {
-      data.data.forEach((m) => {
-        const v = (m || '').toLowerCase().trim();
-        if (v && !existing.includes(v)) {
-          existing.push(v);
-          const opt = document.createElement('option');
-          opt.value = v;
-          opt.textContent = v.charAt(0).toUpperCase() + v.slice(1);
-          select.appendChild(opt);
-        }
-      });
-    }
-  } catch (e) { /* ignore */ }
-};
+// Фильтр: только Пиленый брус и Газобетон (опции в HTML)
+const loadMaterials = async () => { /* опции статичны в index.html */ };
 
 // Сброс фильтров
 const resetFilters = () => {
