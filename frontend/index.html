@@ -36,8 +36,10 @@
       <div class="filters" id="filters">
       <div class="filter-group">
         <label for="material-filter">Материал:</label>
-        <select id="material-filter">
+        <select id="material-filter" class="filter-select-glass">
           <option value="">Все</option>
+          <option value="брус">Брус</option>
+          <option value="газобетон">Газобетон</option>
         </select>
       </div>
 
@@ -54,7 +56,10 @@
         <input type="text" id="search-filter" placeholder="Название проекта или ID...">
       </div>
 
-      <button id="reset-filters" class="btn-reset">Сбросить фильтры</button>
+      <div class="filter-actions">
+        <button type="button" id="apply-filters" class="btn-search">Найти</button>
+        <button type="button" id="reset-filters" class="btn-reset">Сбросить</button>
+      </div>
       </div>
     </div>
 

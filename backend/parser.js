@@ -168,50 +168,17 @@ const parseProject = async (projectId, options = {}) => {
 };
 
 /**
- * Генерирует описание проекта в стиле уютного дома
+ * Генерирует структурированное описание: плашки + короткий поэтичный текст
  */
 const generateDescription = (project) => {
-  const parts = [];
-  
-  // Начало
-  parts.push(`🏠 Уютный ${project.has_second_floor ? 'двухэтажный' : 'одноэтажный'} дом из ${project.material || 'качественного материала'}`);
-  
-  // Площадь
-  if (project.area) {
-    parts.push(`Общая площадь — ${project.area} м²`);
-  }
-  
-  // Планировка
-  const features = [];
-  if (project.bedrooms) {
-    features.push(`${project.bedrooms} ${project.bedrooms === 1 ? 'просторная спальня' : project.bedrooms < 5 ? 'просторные спальни' : 'просторных спален'}`);
-  }
-  if (project.has_kitchen_living) {
-    features.push('светлая кухня-гостиная');
-  }
-  if (project.has_garage) {
-    features.push('удобный гараж');
-  }
-  if (features.length > 0) {
-    parts.push(`Продуманная планировка: ${features.join(', ')}.`);
-  }
-  
-  // Дополнительные особенности
-  const extras = [];
-  if (project.has_terrace) {
-    extras.push('Просторная веранда отлично подходит для семейных завтраков на свежем воздухе ☕️');
-  }
-  if (project.has_second_floor) {
-    extras.push('Второй этаж — тихое место для отдыха 🌿');
-  }
-  if (extras.length > 0) {
-    parts.push(extras.join(', '));
-  }
-  
-  // Заключение
-  parts.push('Идеальный вариант для семьи, которая ценит уют, качество и природное тепло дерева. 🌲');
-  
-  return parts.join('. ') + '.';
+  const badges = [];
+  if (project.bedrooms != null) badges.push(`Спальни — ${project.bedrooms}`);
+  badges.push(`Терраса — ${project.has_terrace ? 'есть' : 'нет'}`);
+  badges.push(`Гараж — ${project.has_garage ? 'есть' : 'нет'}`);
+  badges.push(`2 этажа — ${project.has_second_floor ? 'есть' : 'нет'}`);
+  const badgesStr = badges.join(' • ');
+  const poetic = 'Уютный дом для семьи. 🌲';
+  return `${badgesStr}\n\n${poetic}`;
 };
 
 module.exports = { parseProject, generateDescription };

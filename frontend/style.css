@@ -245,10 +245,49 @@ body {
   border-radius: 12px;
   font-size: 14px;
   font-family: 'Montserrat', sans-serif;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(5px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: var(--text-dark);
   transition: all 0.3s;
+}
+
+.filter-select-glass,
+.filter-group select {
+  background: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237AB8B5' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  padding-right: 36px !important;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.btn-search {
+  flex: 1;
+  padding: 14px;
+  background: var(--mint-border);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-search:hover {
+  background: var(--mint-darker);
 }
 
 .filter-group select:focus,
@@ -273,8 +312,13 @@ body {
   color: var(--mint-darker);
 }
 
+.filter-actions .btn-reset {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 100px;
+}
+
 .btn-reset {
-  width: 100%;
   padding: 14px;
   background: var(--glass-button);
   backdrop-filter: blur(10px);
@@ -419,10 +463,30 @@ body {
   color: var(--text-dark);
   line-height: 1.6;
   margin-bottom: 15px;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+}
+
+.desc-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.desc-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(5px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-dark);
+}
+
+.desc-poetic {
+  font-size: 13px;
+  color: var(--text-light);
+  font-style: italic;
 }
 
 .project-actions {

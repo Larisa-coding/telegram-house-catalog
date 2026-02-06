@@ -234,14 +234,18 @@ const renderProjects = (projects) => {
   });
 };
 
+// Первое фото дома (пропускаем логотипы)
+const getFirstHouseImage = (images) => {
+  if (!images || !Array.isArray(images) || images.length === 0) return null;
+  const filtered = images.filter((src) => src && !String(src).toLowerCase().includes('logo'));
+  return filtered[0] || images[0];
+};
+
 // Создание карточки проекта
 const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
-  
-  const imageUrl = project.images && project.images.length > 0 
-    ? project.images[0] 
-    : 'https://via.placeholder.com/400x300?text=Нет+фото';
+  const imageUrl = getFirstHouseImage(project.images) || 'https://via.placeholder.com/400x300?text=Нет+фото';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -266,7 +270,7 @@ const createProjectCard = (project) => {
       <div class="project-name">${escapeHtml(project.name)}</div>
       <div class="project-specs">${specs.join(' | ')}</div>
       <div class="project-price">${price}</div>
-      <div class="project-description">${escapeHtml(project.formatted_description || project.description || '')}</div>
+      <div class="project-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions">
         <button class="btn btn-primary" onclick="showProjectDetails(${project.id})">
           Подробнее
@@ -304,27 +308,24 @@ const showProjectDetails = async (projectId) => {
       ? `${project.price.toLocaleString('ru-RU')} ₽`
       : 'Цена по запросу';
 
-    let imagesHtml = '';
-    if (project.images && project.images.length > 0) {
-      imagesHtml = `
-        <img src="${project.images[0]}" alt="${project.name}" class="modal-image"
-             onerror="this.style.display='none'">
-        ${project.images.length > 1 ? `
-          <div class="modal-images">
-            ${project.images.slice(1).map(img => 
-              `<img src="${img}" alt="${project.name}" onerror="this.style.display='none'">`
-            ).join('')}
-          </div>
-        ` : ''}
-      `;
-    }
+    const mainImage = getFirstHouseImage(project.images) || (project.images && project.images[0]);
+    const modalImagesHtml = mainImage ? `
+      <img src="${mainImage}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
+      ${(project.images || []).length > 1 ? `
+        <div class="modal-images">
+          ${(project.images || []).slice(1).filter((src) => src && !String(src).toLowerCase().includes('logo')).slice(0, 4).map((img) =>
+            `<img src="${img}" alt="${escapeHtml(project.name)}" onerror="this.style.display='none'">`
+          ).join('')}
+        </div>
+      ` : ''}
+    ` : '';
 
     modalBody.innerHTML = `
-      ${imagesHtml}
+      ${modalImagesHtml}
       <div class="modal-name">${escapeHtml(project.name)}</div>
       <div class="modal-specs">${specs.join(' | ')}</div>
       <div class="modal-price">${price}</div>
-      <div class="modal-description">${escapeHtml(project.formatted_description || project.description || '')}</div>
+      <div class="modal-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions">
         <button class="btn btn-secondary" onclick="contactManager(${project.id})">
           Связаться с менеджером
@@ -358,40 +359,27 @@ const contactManager = (projectId) => {
   openTelegramLink(TELEGRAM_AUTO_TEXT);
 };
 
-// Загрузка материалов для фильтра
+// Загрузка дополнительных материалов из БД (Брус и Газобетон уже в HTML)
 const loadMaterials = async () => {
   try {
     const select = document.getElementById('material-filter');
-    
-    // Добавляем стандартные материалы
-    const materials = ['брус', 'газобетон'];
-    materials.forEach(material => {
-      const option = document.createElement('option');
-      option.value = material;
-      option.textContent = material.charAt(0).toUpperCase() + material.slice(1);
-      select.appendChild(option);
-    });
-    
-    // Также загружаем уникальные материалы из БД
-    try {
-      const response = await fetch(`${API_URL}/materials`);
-      const data = await response.json();
-      if (data.success && data.data.length > 0) {
-        data.data.forEach(material => {
-          if (!materials.includes(material.toLowerCase())) {
-            const option = document.createElement('option');
-            option.value = material;
-            option.textContent = material;
-            select.appendChild(option);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Error loading materials from API:', error);
+    if (!select) return;
+    const existing = ['', 'брус', 'газобетон'];
+    const response = await fetch(`${API_URL}/materials`);
+    const data = await response.json();
+    if (data.success && data.data?.length > 0) {
+      data.data.forEach((m) => {
+        const v = (m || '').toLowerCase().trim();
+        if (v && !existing.includes(v)) {
+          existing.push(v);
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v.charAt(0).toUpperCase() + v.slice(1);
+          select.appendChild(opt);
+        }
+      });
     }
-  } catch (error) {
-    console.error('Error loading materials:', error);
-  }
+  } catch (e) { /* ignore */ }
 };
 
 // Сброс фильтров
@@ -419,9 +407,22 @@ const updateAreaValue = () => {
 
 // Escape HTML
 const escapeHtml = (text) => {
+  if (text == null || text === '') return '';
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+};
+
+// Рендер структурированного описания (плашки + поэтичный текст)
+const renderDescription = (desc) => {
+  if (!desc) return '';
+  const parts = String(desc).split('\n\n');
+  const badgesLine = parts[0] || '';
+  const poetic = parts[1] || '';
+  const badges = badgesLine.split(' • ').filter(Boolean);
+  if (badges.length === 0) return escapeHtml(desc);
+  const badgesHtml = badges.map((b) => `<span class="desc-badge">${escapeHtml(b.trim())}</span>`).join('');
+  return `<div class="desc-badges">${badgesHtml}</div>${poetic ? `<div class="desc-poetic">${escapeHtml(poetic)}</div>` : ''}`;
 };
 
 // Закрытие модального окна
@@ -443,12 +444,9 @@ const safeAddListener = (id, event, handler) => {
   const el = document.getElementById(id);
   if (el) el.addEventListener(event, handler);
 };
-safeAddListener('material-filter', 'change', () => loadProjects(true));
 safeAddListener('min-area', 'input', updateAreaValue);
-safeAddListener('min-area', 'change', () => loadProjects(true));
 safeAddListener('max-area', 'input', updateAreaValue);
-safeAddListener('max-area', 'change', () => loadProjects(true));
-safeAddListener('search-filter', 'input', debounce(() => loadProjects(true), 500));
+safeAddListener('apply-filters', 'click', () => loadProjects(true));
 safeAddListener('reset-filters', 'click', resetFilters);
 safeAddListener('load-more', 'click', () => loadProjects(false));
 
