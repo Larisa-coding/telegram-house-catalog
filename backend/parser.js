@@ -4,12 +4,6 @@ require('dotenv').config();
 
 const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
-const BASE_URL_PUNY = 'https://xn--80az8a.xn--d1aqf.xn--p1ai'; // punycode для запросов
-const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-];
 
 /**
  * Справочник outerWallMaterial (ID → название). Источник: строим.дом.рф / dom.rf.
@@ -230,40 +224,19 @@ const parseFloorPlans = (html) => {
  * @param {string|number} projectId - ID проекта на строим.дом.рф
  * @param {{ skipContractorCheck?: boolean }} options - skipContractorCheck: true при ручном добавлении по ID (любой проект)
  */
-const fetchWithRetry = async (url, maxRetries = 3) => {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': ua,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-        },
-        timeout: 40000,
-        validateStatus: (s) => s >= 200 && s < 400,
-      });
-      return response;
-    } catch (e) {
-      const status = e.response?.status;
-      const isRetryable = status === 502 || status === 503 || status === 429 || status === 403;
-      if (attempt < maxRetries && isRetryable) {
-        const delay = 3000 * attempt + Math.random() * 2000;
-        await new Promise((r) => setTimeout(r, delay));
-      } else {
-        throw e;
-      }
-    }
-  }
-};
-
 const parseProject = async (projectId, options = {}) => {
   const skipContractorCheck = options.skipContractorCheck === true;
   try {
-    const url = `${BASE_URL_PUNY}/project/${projectId}`;
+    const url = `${BASE_URL}/project/${projectId}`;
     console.log(`Parsing project: ${url}`);
     
-    const response = await fetchWithRetry(url);
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      timeout: 30000,
+    });
 
     const $ = cheerio.load(response.data);
     const pageText = $('body').text();

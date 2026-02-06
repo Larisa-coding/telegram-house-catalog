@@ -359,7 +359,7 @@ app.get('/api/seed', async (req, res) => {
         );
         results.created += 1;
       }
-      await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+      await new Promise((r) => setTimeout(r, 800));
     }
     res.json({ success: true, ...results });
   } catch (error) {
@@ -414,7 +414,7 @@ app.post('/api/parse-batch', async (req, res) => {
         );
         results.created += 1;
       }
-      await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+      await new Promise((r) => setTimeout(r, 800));
     }
     res.json({ success: true, ...results });
   } catch (error) {
@@ -517,7 +517,7 @@ app.post('/api/reparse-materials', async (req, res) => {
           failed.push(projectId);
           console.error(`Reparse project ${projectId}:`, e.message);
         }
-        await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+        await new Promise((r) => setTimeout(r, 500));
       }
       console.log(`Reparse done: updated ${updated}, failed ${failed.length}`);
     });

@@ -71,7 +71,7 @@ const fillProjects = async () => {
       }
 
       // Задержка между запросами
-      await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
       console.error(`  ❌ Ошибка при обработке проекта ${id}:`, error.message);
       results.failed.push(id);
