@@ -8,10 +8,17 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const frontendDir = path.join(__dirname, '../frontend');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(frontendDir));
+
+// Явные маршруты для HTML (на случай, если static не отдаёт на части хостингов)
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(frontendDir, 'admin.html'));
+});
 
 // Инициализация БД при старте
 initDB().catch(console.error);
@@ -38,7 +45,7 @@ app.post('/api/telegram/webhook', (req, res) => {
 // GET /api/projects - все проекты с фильтрами
 app.get('/api/projects', async (req, res) => {
   try {
-    const { material, minArea, maxArea, search, projectId, limit = 50, offset = 0 } = req.query;
+    const { material, minArea, maxArea, search, limit = 50, offset = 0 } = req.query;
     
     let query = 'SELECT * FROM projects WHERE 1=1';
     const params = [];
@@ -62,11 +69,7 @@ app.get('/api/projects', async (req, res) => {
       params.push(parseFloat(maxArea));
     }
 
-    if (projectId) {
-      paramCount++;
-      query += ` AND project_id = $${paramCount}`;
-      params.push(parseInt(projectId));
-    } else if (search) {
+    if (search) {
       paramCount++;
       query += ` AND (name ILIKE $${paramCount} OR description ILIKE $${paramCount})`;
       params.push(`%${search}%`);
@@ -117,16 +120,16 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
-// POST /api/parse/:id - парсинг нового проекта
+// POST /api/parse/:id - парсинг и добавление проекта по ID с строим.дом.рф (любой проект, без проверки подрядчика)
 app.post('/api/parse/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const projectData = await parseProject(id);
+    const projectData = await parseProject(id, { skipContractorCheck: true });
 
     if (!projectData) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Project not found or not from specified contractor' 
+      return res.status(404).json({
+        success: false,
+        error: 'Проект не найден на строим.дом.рф или ошибка загрузки страницы',
       });
     }
 
@@ -206,6 +209,109 @@ app.post('/api/parse/:id', async (req, res) => {
   }
 });
 
+// GET /api/seed - заполнить каталог по PROJECT_IDS из .env (один раз после деплоя)
+// PROJECT_IDS=77279,12345,67890
+app.get('/api/seed', async (req, res) => {
+  try {
+    const raw = process.env.PROJECT_IDS || '';
+    const ids = raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n));
+    if (ids.length === 0) {
+      return res.json({ success: true, message: 'PROJECT_IDS не задан. Добавляйте проекты через админку по ID.', created: 0, updated: 0, failed: [] });
+    }
+    const results = { created: 0, updated: 0, failed: [] };
+    for (const id of ids) {
+      const projectData = await parseProject(String(id), { skipContractorCheck: true });
+      if (!projectData) {
+        results.failed.push(id);
+        continue;
+      }
+      const existing = await pool.query('SELECT id FROM projects WHERE project_id = $1', [projectData.project_id]);
+      const fields = [
+        projectData.name, projectData.area, projectData.material, projectData.price,
+        projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
+        projectData.has_second_floor, projectData.has_terrace, projectData.description,
+        JSON.stringify(projectData.images), projectData.url, projectData.project_id,
+      ];
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE projects SET name=$1, area=$2, material=$3, price=$4, bedrooms=$5,
+           has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
+           description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+          fields
+        );
+        results.updated += 1;
+      } else {
+        await pool.query(
+          `INSERT INTO projects (project_id, name, area, material, price, bedrooms,
+           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, url)
+           VALUES ($13, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          fields
+        );
+        results.created += 1;
+      }
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Error seed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/parse-batch - заполнить каталог по списку ID (строим.дом.рф)
+// Body: { projectIds: [77279, 12345, ...] } или { projectIds: "77279,12345" }
+app.post('/api/parse-batch', async (req, res) => {
+  try {
+    let ids = req.body?.projectIds;
+    if (typeof ids === 'string') {
+      ids = ids.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map(Number);
+    }
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Укажите projectIds: массив ID или строка через запятую',
+      });
+    }
+    const results = { created: 0, updated: 0, failed: [] };
+    for (const id of ids) {
+      const projectData = await parseProject(String(id), { skipContractorCheck: true });
+      if (!projectData) {
+        results.failed.push(id);
+        continue;
+      }
+      const existing = await pool.query('SELECT id FROM projects WHERE project_id = $1', [projectData.project_id]);
+      const fields = [
+        projectData.name, projectData.area, projectData.material, projectData.price,
+        projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
+        projectData.has_second_floor, projectData.has_terrace, projectData.description,
+        JSON.stringify(projectData.images), projectData.url, projectData.project_id,
+      ];
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE projects SET name=$1, area=$2, material=$3, price=$4, bedrooms=$5,
+           has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
+           description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+          fields
+        );
+        results.updated += 1;
+      } else {
+        await pool.query(
+          `INSERT INTO projects (project_id, name, area, material, price, bedrooms,
+           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, url)
+           VALUES ($13, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          fields
+        );
+        results.created += 1;
+      }
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Error parse-batch:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/materials - уникальные материалы для фильтров
 app.get('/api/materials', async (req, res) => {
   try {
@@ -220,150 +326,12 @@ app.get('/api/materials', async (req, res) => {
   }
 });
 
-// Ручной запуск cron для проверки новых проектов
-app.post('/api/cron/check', async (req, res) => {
-  try {
-    const { checkNewProjects } = require('./cron');
-    await checkNewProjects();
-    res.json({ success: true, message: 'Cron job executed' });
-  } catch (error) {
-    console.error('Error running cron:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /api/parse-batch - массовый парсинг проектов (без ограничений по ID)
-app.post('/api/parse-batch', async (req, res) => {
-  try {
-    const { startId, endId, step = 1, maxProjects = 1000 } = req.body;
-    const { parseProject } = require('./parser');
-    
-    // Определяем диапазон для проверки
-    let actualStartId = startId;
-    let actualEndId = endId;
-    
-    if (!startId || !endId) {
-      // Получаем максимальный ID из БД
-      const maxResult = await pool.query(
-        'SELECT MAX(project_id) as max_id FROM projects'
-      );
-      const maxId = maxResult.rows[0]?.max_id;
-      
-      if (!maxId) {
-        // БД пустая - начинаем с минимального известного ID
-        actualStartId = 45;
-        actualEndId = 100000; // Проверяем очень широкий диапазон
-      } else {
-        // Продолжаем с последнего найденного
-        actualStartId = maxId + 1;
-        actualEndId = maxId + maxProjects; // Проверяем следующие N проектов
-      }
-    }
-    
-    console.log(`Starting batch parsing from ${actualStartId} to ${actualEndId} (checking all IDs)`);
-    let parsed = 0;
-    let skipped = 0;
-    let errors = 0;
-    let notFound = 0;
-    let consecutiveNotFound = 0;
-    const maxConsecutiveNotFound = 100; // Останавливаемся если 100 подряд не найдено
-    
-    for (let projectId = actualStartId; projectId <= actualEndId; projectId += step) {
-      try {
-        // Проверяем, есть ли уже проект
-        const existing = await pool.query(
-          'SELECT id FROM projects WHERE project_id = $1',
-          [projectId]
-        );
-        
-        if (existing.rows.length > 0) {
-          skipped++;
-          continue;
-        }
-        
-        // Парсим проект
-        const projectData = await parseProject(projectId.toString());
-        
-        if (!projectData) {
-          notFound++;
-          consecutiveNotFound++;
-          // Если много подряд не найдено, возможно достигли конца диапазона
-          if (consecutiveNotFound >= maxConsecutiveNotFound && !startId && !endId) {
-            console.log(`Stopping: ${maxConsecutiveNotFound} consecutive projects not found`);
-            break;
-          }
-          continue;
-        }
-        
-        consecutiveNotFound = 0; // Сбрасываем счетчик при успешном парсинге
-        
-        // Сохраняем в БД
-        const insertQuery = `
-          INSERT INTO projects (
-            project_id, name, area, material, price, bedrooms,
-            has_kitchen_living, has_garage, has_second_floor, has_terrace,
-            description, images, url
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-          ON CONFLICT (project_id) DO NOTHING
-          RETURNING *
-        `;
-        await pool.query(insertQuery, [
-          projectData.project_id,
-          projectData.name,
-          projectData.area,
-          projectData.material,
-          projectData.price,
-          projectData.bedrooms,
-          projectData.has_kitchen_living,
-          projectData.has_garage,
-          projectData.has_second_floor,
-          projectData.has_terrace,
-          projectData.description,
-          JSON.stringify(projectData.images),
-          projectData.url,
-        ]);
-        
-        parsed++;
-        
-        // Небольшая задержка между запросами (чтобы не перегружать сайт)
-        if (parsed % 10 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      } catch (error) {
-        if (error.message && (error.message.includes('404') || error.message.includes('not found'))) {
-          notFound++;
-          consecutiveNotFound++;
-        } else {
-          console.error(`Error parsing project ${projectId}:`, error.message);
-          errors++;
-        }
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: `Batch parsing completed`,
-      stats: { 
-        parsed, 
-        skipped, 
-        errors, 
-        notFound,
-        total: Math.floor((actualEndId - actualStartId) / step) + 1,
-        range: `${actualStartId} - ${actualEndId}`
-      }
-    });
-  } catch (error) {
-    console.error('Error in batch parsing:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   if (process.env.TELEGRAM_BOT_TOKEN) {
     console.log('Telegram bot is active');
