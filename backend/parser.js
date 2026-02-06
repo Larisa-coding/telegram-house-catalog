@@ -296,6 +296,30 @@ const parseProject = async (projectId, options = {}) => {
     housePhotos.length = 0;
     housePhotos.push(...bigFirst, ...tiny);
 
+    // 6. Заглавная картинка (дом с лицевой стороны) — TopInfo_images_first / Image_image--cover — ВСЕГДА первая
+    let coverSrc = null;
+    $('[class*="TopInfo_images_first"], [class*="images_first"]').find('img, picture img, picture source').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('srcset')?.split(/\s+/)[0] || getImgSrc(el);
+      if (src && !isFloorPlan(src) && !isTinyThumbnail(src) && !isLogoImg(el)) {
+        coverSrc = src;
+        return false;
+      }
+    });
+    if (!coverSrc) $('img[class*="Image_image--cover"]').each((i, el) => {
+      const src = getImgSrc(el);
+      if (src && !isFloorPlan(src) && !isLogoImg(el)) { coverSrc = src; return false; }
+    });
+    if (coverSrc) {
+      if (!coverSrc.startsWith('http')) coverSrc = coverSrc.startsWith('//') ? `https:${coverSrc}` : `${BASE_URL}${coverSrc.startsWith('/') ? coverSrc : '/' + coverSrc}`;
+      const idx = housePhotos.indexOf(coverSrc);
+      if (idx > 0) {
+        housePhotos.splice(idx, 1);
+        housePhotos.unshift(coverSrc);
+      } else if (idx < 0 && housePhotos.length > 0) {
+        housePhotos.unshift(coverSrc);
+      } else if (idx === 0) { /* уже первая */ }
+    }
+
     // 4. ПОЭТАЖНЫЕ ПЛАНЫ — PlanList_plan_switcher, img alt="План 1 этажа" / "План 2 этажа"
     // Один этаж — только план 1, два этажа — план 1 и план 2 (если есть на странице)
     const upgradePlanUrl = (url) => {
