@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const axios = require('axios');
 const { pool, initDB } = require('./db');
 const { parseProject, generateDescription } = require('./parser');
 require('dotenv').config();
@@ -14,6 +15,32 @@ const frontendDir = path.join(__dirname, '../frontend');
 app.use(cors());
 app.use(express.json());
 app.use(express.static(frontendDir));
+
+// GET /api/proxy-image?url=... — прокси изображений (обход CORS для строим.дом.рф)
+app.get('/api/proxy-image', async (req, res) => {
+  try {
+    const rawUrl = req.query.url;
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      return res.status(400).json({ error: 'Missing url' });
+    }
+    const url = decodeURIComponent(rawUrl);
+    if (!url.startsWith('https://') && !url.startsWith('http://')) {
+      return res.status(400).json({ error: 'Invalid url' });
+    }
+    const resp = await axios.get(url, {
+      responseType: 'stream',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; UyutnyDom/1)' },
+      timeout: 15000,
+    });
+    const ct = resp.headers['content-type'] || 'image/jpeg';
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Content-Type', ct);
+    resp.data.pipe(res);
+  } catch (e) {
+    console.error('proxy-image:', e.message);
+    res.status(502).json({ error: 'Proxy error' });
+  }
+});
 
 // POST /api/track-user - отслеживание пользователя
 app.post('/api/track-user', express.json(), async (req, res) => {
@@ -194,8 +221,8 @@ app.post('/api/parse/:id', async (req, res) => {
         SET name = $1, area = $2, material = $3, price = $4, 
             bedrooms = $5, has_kitchen_living = $6, has_garage = $7,
             has_second_floor = $8, has_terrace = $9, description = $10,
-            images = $11, url = $12, parsed_at = CURRENT_TIMESTAMP
-        WHERE project_id = $13
+            images = $11, floor_plans = $12, url = $13, parsed_at = CURRENT_TIMESTAMP
+        WHERE project_id = $14
         RETURNING *
       `;
       const result = await pool.query(updateQuery, [
@@ -210,6 +237,7 @@ app.post('/api/parse/:id', async (req, res) => {
         projectData.has_terrace,
         projectData.description,
         JSON.stringify(projectData.images),
+        JSON.stringify(projectData.floor_plans || []),
         projectData.url,
         projectData.project_id,
       ]);
@@ -225,8 +253,8 @@ app.post('/api/parse/:id', async (req, res) => {
         INSERT INTO projects (
           project_id, name, area, material, price, bedrooms,
           has_kitchen_living, has_garage, has_second_floor, has_terrace,
-          description, images, url
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          description, images, floor_plans, url
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING *
       `;
       const result = await pool.query(insertQuery, [
@@ -242,6 +270,7 @@ app.post('/api/parse/:id', async (req, res) => {
         projectData.has_terrace,
         projectData.description,
         JSON.stringify(projectData.images),
+        JSON.stringify(projectData.floor_plans || []),
         projectData.url,
       ]);
 
@@ -274,25 +303,26 @@ app.get('/api/seed', async (req, res) => {
         continue;
       }
       const existing = await pool.query('SELECT id FROM projects WHERE project_id = $1', [projectData.project_id]);
+      const floorPlansJson = JSON.stringify(projectData.floor_plans || []);
       const fields = [
         projectData.name, projectData.area, projectData.material, projectData.price,
         projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
         projectData.has_second_floor, projectData.has_terrace, projectData.description,
-        JSON.stringify(projectData.images), projectData.url, projectData.project_id,
+        JSON.stringify(projectData.images), floorPlansJson, projectData.url, projectData.project_id,
       ];
       if (existing.rows.length > 0) {
         await pool.query(
           `UPDATE projects SET name=$1, area=$2, material=$3, price=$4, bedrooms=$5,
            has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
-           description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+           description=$10, images=$11, floor_plans=$12, url=$13, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$14`,
           fields
         );
         results.updated += 1;
       } else {
         await pool.query(
           `INSERT INTO projects (project_id, name, area, material, price, bedrooms,
-           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, url)
-           VALUES ($13, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, floor_plans, url)
+           VALUES ($14, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           fields
         );
         results.created += 1;
@@ -328,25 +358,26 @@ app.post('/api/parse-batch', async (req, res) => {
         continue;
       }
       const existing = await pool.query('SELECT id FROM projects WHERE project_id = $1', [projectData.project_id]);
+      const floorPlansJson = JSON.stringify(projectData.floor_plans || []);
       const fields = [
         projectData.name, projectData.area, projectData.material, projectData.price,
         projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
         projectData.has_second_floor, projectData.has_terrace, projectData.description,
-        JSON.stringify(projectData.images), projectData.url, projectData.project_id,
+        JSON.stringify(projectData.images), floorPlansJson, projectData.url, projectData.project_id,
       ];
       if (existing.rows.length > 0) {
         await pool.query(
           `UPDATE projects SET name=$1, area=$2, material=$3, price=$4, bedrooms=$5,
            has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
-           description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+           description=$10, images=$11, floor_plans=$12, url=$13, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$14`,
           fields
         );
         results.updated += 1;
       } else {
         await pool.query(
           `INSERT INTO projects (project_id, name, area, material, price, bedrooms,
-           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, url)
-           VALUES ($13, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, floor_plans, url)
+           VALUES ($14, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           fields
         );
         results.created += 1;
@@ -441,12 +472,12 @@ app.post('/api/reparse-materials', async (req, res) => {
           await pool.query(
             `UPDATE projects SET material=$1, name=$2, area=$3, price=$4, bedrooms=$5,
              has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
-             description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+             description=$10, images=$11, floor_plans=$12, url=$13, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$14`,
             [
               projectData.material, projectData.name, projectData.area, projectData.price,
               projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
               projectData.has_second_floor, projectData.has_terrace, projectData.description,
-              JSON.stringify(projectData.images), projectData.url, projectData.project_id,
+              JSON.stringify(projectData.images), JSON.stringify(projectData.floor_plans || []), projectData.url, projectData.project_id,
             ]
           );
           updated += 1;

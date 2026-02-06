@@ -52,8 +52,8 @@ const checkNewProjects = async () => {
             INSERT INTO projects (
               project_id, name, area, material, price, bedrooms,
               has_kitchen_living, has_garage, has_second_floor, has_terrace,
-              description, images, url
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+              description, images, floor_plans, url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
           `;
           await pool.query(insertQuery, [
@@ -69,6 +69,7 @@ const checkNewProjects = async () => {
             projectData.has_terrace,
             projectData.description,
             JSON.stringify(projectData.images),
+            JSON.stringify(projectData.floor_plans || []),
             projectData.url,
           ]);
         }

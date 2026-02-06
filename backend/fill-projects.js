@@ -32,6 +32,7 @@ const fillProjects = async () => {
         [projectData.project_id]
       );
 
+      const floorPlansJson = JSON.stringify(projectData.floor_plans || []);
       const fields = [
         projectData.name,
         projectData.area,
@@ -44,6 +45,7 @@ const fillProjects = async () => {
         projectData.has_terrace,
         projectData.description,
         JSON.stringify(projectData.images),
+        floorPlansJson,
         projectData.url,
         projectData.project_id,
       ];
@@ -52,7 +54,7 @@ const fillProjects = async () => {
         await pool.query(
           `UPDATE projects SET name=$1, area=$2, material=$3, price=$4, bedrooms=$5,
            has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
-           description=$10, images=$11, url=$12, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$13`,
+           description=$10, images=$11, floor_plans=$12, url=$13, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$14`,
           fields
         );
         results.updated += 1;
@@ -60,8 +62,8 @@ const fillProjects = async () => {
       } else {
         await pool.query(
           `INSERT INTO projects (project_id, name, area, material, price, bedrooms,
-           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, url)
-           VALUES ($13, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           has_kitchen_living, has_garage, has_second_floor, has_terrace, description, images, floor_plans, url)
+           VALUES ($14, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           fields
         );
         results.created += 1;

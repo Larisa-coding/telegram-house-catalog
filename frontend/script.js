@@ -360,19 +360,36 @@ const showProjectDetails = async (projectId) => {
     const allImages = (project.images || []).filter((src) => src && !isLogoOrIcon(src));
     const mainImage = getFirstHouseImage(allImages) || allImages[0] || (project.images && project.images[0]);
     const otherImages = allImages.filter((src) => src !== mainImage).slice(0, 20);
+    const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
+    const proxyImg = (url) => {
+      if (!url || !url.startsWith('http')) return url;
+      return `${API_URL}/proxy-image?url=${encodeURIComponent(url)}`;
+    };
     const modalImagesHtml = mainImage ? `
-      <img src="${mainImage}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
+      <img src="${proxyImg(mainImage)}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
       ${otherImages.length > 0 ? `
         <div class="modal-images">
           ${otherImages.map((img) =>
-            `<img src="${img}" alt="${escapeHtml(project.name)}" onerror="this.style.display='none'">`
+            `<img src="${proxyImg(img)}" alt="${escapeHtml(project.name)}" onerror="this.style.display='none'">`
           ).join('')}
         </div>
       ` : ''}
     ` : '';
 
+    const floorPlansHtml = floorPlans.length > 0 ? `
+      <div class="modal-floor-plans">
+        <h4 class="modal-floor-plans-title">Планировки</h4>
+        <div class="modal-floor-plans-grid">
+          ${floorPlans.map((url) =>
+            `<img src="${proxyImg(url)}" alt="План этажа" class="modal-floor-plan-img" onerror="this.style.display='none'">`
+          ).join('')}
+        </div>
+      </div>
+    ` : '';
+
     modalBody.innerHTML = `
       ${modalImagesHtml}
+      ${floorPlansHtml}
       <div class="modal-name">${escapeHtml(project.name)}</div>
       <div class="modal-specs">${specs.join(' | ')}</div>
       <div class="modal-price">${price}</div>

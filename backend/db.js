@@ -34,6 +34,7 @@ const initDB = async () => {
         has_terrace BOOLEAN DEFAULT false,
         description TEXT,
         images JSONB DEFAULT '[]'::jsonb,
+        floor_plans JSONB DEFAULT '[]'::jsonb,
         url TEXT,
         parsed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         posted_to_channel BOOLEAN DEFAULT false
@@ -44,6 +45,10 @@ const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_project_id ON projects(project_id);
       CREATE INDEX IF NOT EXISTS idx_material ON projects(material);
       CREATE INDEX IF NOT EXISTS idx_area ON projects(area);
+    `);
+
+    await pool.query(`
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS floor_plans JSONB DEFAULT '[]'::jsonb
     `);
 
     // Таблица пользователей

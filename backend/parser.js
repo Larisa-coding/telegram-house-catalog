@@ -6,12 +6,60 @@ const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
 
 /**
- * ТОЧНЫЙ материал наружных стен — ТОЛЬКО из HTML, без догадок.
- * Ищет блок/таблицу с "Материал", "Стены", "Наружных стен" и берёт значение из соседней ячейки.
+ * Справочник outerWallMaterial (ID → название). Источник: строим.дом.рф / dom.rf.
+ * Дополняй по мере обнаружения новых ID.
+ */
+const OUTER_WALL_MATERIAL_MAP = {
+  1: 'Кирпич',
+  2: 'Газобетонные блоки',
+  3: 'Керамзитобетонные блоки',
+  4: 'Керамические блоки',
+  5: 'Дерево',
+  6: 'СИП-панели',
+  7: 'Каркас',
+  8: 'Арболит',
+  9: 'Пенобетонные блоки',
+  10: 'Газосиликатные блоки',
+  11: 'Пиленый брус',
+  12: 'Оцилиндрованное бревно',
+  13: 'Клееный брус',
+  14: 'Теплоблок',
+  15: 'Профилированный брус',
+};
+
+/**
+ * Материал из __NEXT_DATA__ (outerWallMaterial ID).
+ * @param {string} html - HTML страницы
+ * @returns {string|null}
+ */
+const parseMaterialFromNextData = (html) => {
+  try {
+    const $ = cheerio.load(html);
+    const script = $('script#__NEXT_DATA__').html();
+    if (!script) return null;
+    const nextData = JSON.parse(script);
+    const entities = nextData?.props?.pageProps?.initialState?.detailEntities?.project?.entities;
+    if (!entities || typeof entities !== 'object') return null;
+    for (const key of Object.keys(entities)) {
+      const realization = entities[key]?.realization;
+      const id = realization?.outerWallMaterial;
+      if (id != null && OUTER_WALL_MATERIAL_MAP[id]) {
+        return OUTER_WALL_MATERIAL_MAP[id];
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+};
+
+/**
+ * ТОЧНЫЙ материал наружных стен — сначала из __NEXT_DATA__, затем из HTML.
  * @param {string} html - HTML страницы проекта
  * @returns {string|null} - точное значение материала или null, если не найдено
  */
 const parseMaterial = (html) => {
+  const fromNextData = parseMaterialFromNextData(html);
+  if (fromNextData) return fromNextData;
+
   const $ = cheerio.load(html);
   const labelPattern = /Материал\s+(наружных\s+)?стен|Материал\s+стен/i;
   const empty = (v) => !v || v === '—' || v === '-';
@@ -141,33 +189,32 @@ const parseFloorPlans = (html) => {
     if (src) addPlan(src);
   });
 
-  // 4. __NEXT_DATA__ projectPlans.imageFileIds
-  if (plans.length === 0) {
-    try {
-      const nextData = JSON.parse($('script#__NEXT_DATA__').html() || '{}');
-      const findPlans = (obj) => {
-        if (!obj || typeof obj !== 'object') return null;
-        if (obj.projectPlans && Array.isArray(obj.projectPlans)) return obj;
-        for (const k of Object.keys(obj)) {
-          const r = findPlans(obj[k]);
-          if (r) return r;
-        }
-        return null;
-      };
-      const proj = findPlans(nextData?.props?.pageProps?.initialState || {});
-      if (proj?.projectPlans) {
-        proj.projectPlans.forEach((p) => {
-          (p.imageFileIds || []).forEach((fid) => {
-            const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
-            if (hex.length >= 10) {
-              const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
-              addPlan(`${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
-            }
-          });
-        });
+  // 4. __NEXT_DATA__ projectPlans.imageFileIds — всегда парсим (HTML часто без планов до hydration)
+  try {
+    const nextData = JSON.parse($('script#__NEXT_DATA__').html() || '{}');
+    const findPlans = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      if (obj.projectPlans && Array.isArray(obj.projectPlans)) return obj;
+      for (const k of Object.keys(obj)) {
+        const r = findPlans(obj[k]);
+        if (r) return r;
       }
-    } catch (e) { /* ignore */ }
-  }
+      return null;
+    };
+    const proj = findPlans(nextData?.props?.pageProps?.initialState || {});
+    if (proj?.projectPlans) {
+      proj.projectPlans.forEach((p) => {
+        const ids = p.imageFileIds || (p.imageFileId ? [p.imageFileId] : []);
+        ids.forEach((fid) => {
+          const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
+          if (hex.length >= 10) {
+            const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
+            addPlan(`${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
+          }
+        });
+      });
+    }
+  } catch (e) { /* ignore */ }
 
   return plans;
 };
@@ -415,6 +462,7 @@ const parseProject = async (projectId, options = {}) => {
       name: name || `Проект ${projectId}`,
       area: area,
       material: material,
+      floor_plans: floorPlans,
       price: price,
       bedrooms: bedrooms,
       has_kitchen_living: hasKitchenLiving,
