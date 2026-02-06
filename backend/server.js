@@ -24,7 +24,9 @@ app.get('/api/config', (req, res) => {
 
 // Главная — инжектим API_BASE для Telegram WebView (origin может быть web.telegram.org)
 app.get('/', (req, res) => {
-  const base = process.env.PUBLIC_BASE_URL || process.env.RAILWAY_STATIC_URL || (req.protocol + '://' + (req.get('host') || req.get('x-forwarded-host') || 'localhost'));
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
+  const base = process.env.PUBLIC_BASE_URL || process.env.RAILWAY_STATIC_URL || `${protocol}://${host}`;
   const indexPath = path.join(frontendDir, 'index.html');
   let html = fs.readFileSync(indexPath, 'utf8');
   const script = `<script>window.__API_BASE="${base.replace(/\/$/, '')}";</script>`;
