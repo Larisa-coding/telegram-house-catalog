@@ -446,7 +446,29 @@ const parseProject = async (projectId, options = {}) => {
       } else if (idx === 0) { /* уже первая */ }
     }
 
-    // 4. ВСЕ ФОТО из раздела "Поэтажный план" — parseFloorPlans
+    // 4. ВСЕ рендеры из __NEXT_DATA__ realization.imageFileIds (HTML содержит только 3, здесь — все)
+    try {
+      const nextData = JSON.parse($('script#__NEXT_DATA__').html() || '{}');
+      const entities = nextData?.props?.pageProps?.initialState?.detailEntities?.project?.entities || {};
+      const realization = entities[String(projectId)]?.realization || Object.values(entities)[0]?.realization;
+      const renderIds = realization?.imageFileIds || [];
+      const resizerBase = `${BASE_URL}/resizer/v2/image`;
+      if (renderIds.length > 0) {
+        housePhotos.length = 0;
+        seen.clear();
+        renderIds.forEach((fid) => {
+          const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
+          if (hex.length >= 10) {
+            const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
+            const url = `${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`;
+            seen.add(url);
+            housePhotos.push(url);
+          }
+        });
+      }
+    } catch (e) { /* ignore */ }
+
+    // 5. ВСЕ ФОТО из раздела "Поэтажный план" — parseFloorPlans
     const parsedPlans = parseFloorPlans(response.data);
     parsedPlans.forEach((url) => {
       if (!seen.has(url)) {
@@ -455,7 +477,7 @@ const parseProject = async (projectId, options = {}) => {
       }
     });
 
-    const images = [...housePhotos, ...floorPlans].slice(0, 50);
+    const images = [...housePhotos, ...floorPlans];
 
     const projectData = {
       project_id: parseInt(projectId),

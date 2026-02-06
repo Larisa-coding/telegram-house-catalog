@@ -292,7 +292,8 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const imageUrl = firstImg || 'https://via.placeholder.com/400x300?text=Дом';
+  const proxyImg = (url) => url && url.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(url)}` : url;
+  const imageUrl = proxyImg(firstImg) || 'https://via.placeholder.com/400x300?text=Дом';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -357,9 +358,11 @@ const showProjectDetails = async (projectId) => {
       ? `${project.price.toLocaleString('ru-RU')} ₽*`
       : 'Цена по запросу*';
 
+    const floorPlansSet = new Set((project.floor_plans || []).filter(Boolean));
     const allImages = (project.images || []).filter((src) => src && !isLogoOrIcon(src));
-    const mainImage = getFirstHouseImage(allImages) || allImages[0] || (project.images && project.images[0]);
-    const otherImages = allImages.filter((src) => src !== mainImage).slice(0, 20);
+    const houseImagesOnly = allImages.filter((src) => !floorPlansSet.has(src));
+    const mainImage = getFirstHouseImage(houseImagesOnly) || getFirstHouseImage(allImages) || allImages[0];
+    const otherImages = houseImagesOnly.filter((src) => src !== mainImage);
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
     const proxyImg = (url) => {
       if (!url || !url.startsWith('http')) return url;
