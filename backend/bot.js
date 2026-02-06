@@ -27,6 +27,13 @@ const createBot = () => {
   console.log(`Bot initialized in ${isWebhookMode ? 'webhook' : 'polling'} mode`);
   console.log(`WEB_APP_URL: ${WEB_APP_URL}`);
 
+  // Обработчик всех сообщений для отладки
+  bot.on('message', (msg) => {
+    console.log('=== Message received ===');
+    console.log('Text:', msg.text);
+    console.log('Chat ID:', msg.chat.id);
+  });
+
   // /start
   bot.onText(/\/start/, (msg) => {
     console.log('=== /start command received ===');

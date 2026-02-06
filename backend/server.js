@@ -27,18 +27,26 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 app.post('/api/telegram/webhook', (req, res) => {
   try {
     console.log('=== Webhook received ===');
-    console.log('Body:', JSON.stringify(req.body, null, 2));
+    console.log('Update ID:', req.body?.update_id);
+    console.log('Message:', req.body?.message?.text || 'No message');
+    console.log('Callback query:', req.body?.callback_query?.data || 'No callback');
     
     if (!bot) {
       console.error('Bot not initialized');
       return res.sendStatus(503);
     }
     
-    // Обрабатываем обновление
-    bot.processUpdate(req.body);
-    
     // Отвечаем сразу, чтобы Telegram не повторял запрос
     res.sendStatus(200);
+    
+    // Обрабатываем обновление асинхронно
+    setImmediate(() => {
+      try {
+        bot.processUpdate(req.body);
+      } catch (error) {
+        console.error('Error processing update:', error);
+      }
+    });
   } catch (error) {
     console.error('Telegram webhook error:', error);
     res.sendStatus(500);
