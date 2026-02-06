@@ -275,12 +275,20 @@ const parseProject = async (projectId, options = {}) => {
   }
 };
 
+const declenseBedroom = (n) => {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} спальня`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return `${n} спальни`;
+  return `${n} спален`;
+};
+
 /**
  * Генерирует описание: плашки (без «есть»/«нет») + развёрнутый текст
  */
 const generateDescription = (project) => {
   const badges = [];
-  if (project.bedrooms != null) badges.push(`Спальни — ${project.bedrooms}`);
+  if (project.bedrooms != null) badges.push(declenseBedroom(project.bedrooms));
   badges.push('Кухня-гостиная');
   if (project.has_terrace) badges.push('Терраса');
   if (project.has_garage) badges.push('Гараж');
@@ -289,7 +297,7 @@ const generateDescription = (project) => {
   const parts = [];
   parts.push(`Уютный ${project.has_second_floor ? 'двухэтажный' : 'одноэтажный'} дом из ${project.material || 'качественного материала'}.`);
   if (project.area) parts.push(`Общая площадь — ${project.area} м².`);
-  parts.push(`Продуманная планировка: ${project.bedrooms ? `${project.bedrooms} спален, ` : ''}светлая кухня-гостиная${project.has_garage ? ', удобный гараж' : ''}.`);
+  parts.push(`Продуманная планировка: ${project.bedrooms ? `${declenseBedroom(project.bedrooms)}, ` : ''}светлая кухня-гостиная${project.has_garage ? ', удобный гараж' : ''}.`);
   if (project.has_terrace) parts.push('Просторная терраса для семейного отдыха.');
   parts.push('Идеальный вариант для семьи, которая ценит уют и качество. 🌲');
   const poetic = parts.join(' ');
