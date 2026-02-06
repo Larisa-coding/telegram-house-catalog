@@ -291,9 +291,10 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const imageUrl = firstImg && firstImg.startsWith('http')
-    ? firstImg
-    : 'https://via.placeholder.com/400x300?text=Дом';
+  const proxySrc = firstImg && firstImg.startsWith('http')
+    ? `${API_URL}/proxy-image?url=${encodeURIComponent(firstImg)}`
+    : '';
+  const imageUrl = proxySrc || 'https://via.placeholder.com/400x300?text=Дом';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -307,10 +308,11 @@ const createProjectCard = (project) => {
   const favoriteClass = isFavorite(projId) ? 'active' : '';
   const favoriteIcon = isFavorite(projId) ? '❤️' : '🤍';
   
+  const directFallback = firstImg && firstImg.startsWith('http') ? firstImg.replace(/"/g, '&quot;') : '';
   card.innerHTML = `
     <div class="project-image-container">
-      <img src="${imageUrl}" alt="${escapeHtml(project.name)}" class="project-image" referrerpolicy="no-referrer"
-           onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
+      <img src="${imageUrl}" ${directFallback ? `data-fallback="${directFallback}"` : ''} alt="${escapeHtml(project.name)}" class="project-image" referrerpolicy="no-referrer"
+           onerror="if(this.dataset.fallback){this.src=this.dataset.fallback;this.dataset.fallback=''}else{this.src='https://via.placeholder.com/400x300?text=Нет+фото'}">
       <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${projId}, this)" title="Добавить в избранное">
         ${favoriteIcon}
       </button>
@@ -364,9 +366,11 @@ const showProjectDetails = async (projectId) => {
     const mainImage = getFirstHouseImage(houseImagesOnly) || getFirstHouseImage(allImages) || allImages[0];
     const otherImages = houseImagesOnly.filter((src) => src !== mainImage);
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
+    const proxyUrl = (url) => url && url.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(url)}` : '';
     const imgTag = (url, cls) => {
       if (!url || !url.startsWith('http')) return '';
-      return `<img src="${url.replace(/"/g, '&quot;')}" alt="${escapeHtml(project.name)}" class="${cls}" referrerpolicy="no-referrer" onerror="this.style.display='none'">`;
+      const src = proxyUrl(url);
+      return src ? `<img src="${src}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="this.style.display='none'">` : '';
     };
     const modalImagesHtml = mainImage ? `
       ${imgTag(mainImage, 'modal-image')}
