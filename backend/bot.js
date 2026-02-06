@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://your-app.railway.app';
+const START_IMAGE_URL = process.env.START_IMAGE_URL;
 
 /**
  * Создает бота в режиме:
@@ -23,17 +24,36 @@ const createBot = () => {
   bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
 
-    bot.sendMessage(chatId, '🏠 Добро пожаловать в каталог уютных домов!', {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: '🏠 Открыть каталог',
-              web_app: { url: WEB_APP_URL },
-            },
-          ],
+    const welcomeText =
+      '🏠 Уютный Дом — каталог проектов\n\n' +
+      'Добро пожаловать в официальное приложение компании Уютный Дом!\n\n' +
+      'Что здесь можно:\n' +
+      '✨ Искать проекты домов из каталога domuyut38.ru\n' +
+      '🔍 Фильтровать по материалу (брус, газобетон) и площади\n' +
+      '📱 Смотреть фото, планировки, цены\n' +
+      '🔗 Переходить к подробному описанию на сайте\n' +
+      '💬 Связаться с менеджером одним кликом\n\n' +
+      'Нажми «Открыть каталог» — и найди свой идеальный дом! 🏡';
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: '🏠 Открыть каталог',
+            web_app: { url: WEB_APP_URL },
+          },
         ],
-      },
+      ],
+    };
+
+    if (!START_IMAGE_URL) {
+      bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup });
+      return;
+    }
+
+    bot.sendPhoto(chatId, START_IMAGE_URL, {
+      caption: welcomeText,
+      reply_markup: replyMarkup,
     });
   });
 
