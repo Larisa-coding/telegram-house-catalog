@@ -1,8 +1,18 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const connectionString =
+  process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
+
+if (!connectionString) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    'Missing DATABASE_URL / DATABASE_PUBLIC_URL. Database connection will fail until you set one of them.'
+  );
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
