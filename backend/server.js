@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const axios = require('axios');
 const { pool, initDB } = require('./db');
 const { parseProject, generateDescription } = require('./parser');
@@ -16,21 +15,10 @@ const frontendDir = path.join(__dirname, '../frontend');
 app.use(cors());
 app.use(express.json());
 
-// GET /api/config — base URL для фронта
+// GET /api/config — base URL для фронта (Telegram WebView может давать неверный origin)
 app.get('/api/config', (req, res) => {
   const base = process.env.PUBLIC_BASE_URL || req.protocol + '://' + req.get('host');
   res.json({ apiBase: base.replace(/\/$/, '') });
-});
-
-// Главная — инжектим API_BASE для Telegram WebView (origin может быть web.telegram.org)
-app.get('/', (req, res) => {
-  const base = process.env.PUBLIC_BASE_URL || process.env.RAILWAY_STATIC_URL || (req.protocol + '://' + (req.get('host') || req.get('x-forwarded-host') || 'localhost'));
-  const indexPath = path.join(frontendDir, 'index.html');
-  let html = fs.readFileSync(indexPath, 'utf8');
-  const script = `<script>window.__API_BASE="${base.replace(/\/$/, '')}";</script>`;
-  html = html.replace('</head>', script + '\n</head>');
-  res.set('Content-Type', 'text/html');
-  res.send(html);
 });
 
 app.use(express.static(frontendDir));
