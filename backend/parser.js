@@ -4,6 +4,8 @@ require('dotenv').config();
 
 const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
+// Punycode домен — как на сайте (xn--80az8a.xn--d1aqf.xn--p1ai = строим.дом.рф)
+const RESIZER_BASE = 'https://xn--80az8a.xn--d1aqf.xn--p1ai/resizer/v2/image';
 
 /**
  * Справочник outerWallMaterial (ID → название). Источник: строим.дом.рф / dom.rf.
@@ -143,7 +145,7 @@ const parseMaterial = (html) => {
  */
 const parseFloorPlans = (html) => {
   const $ = cheerio.load(html);
-  const resizerBase = `${BASE_URL}/resizer/v2/image`;
+  const resizerBase = RESIZER_BASE;
   const upgradeUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
     const s = url.replace(/width=\d+/, 'width=1200').replace(/quality=\d+/, 'quality=90');
@@ -452,14 +454,13 @@ const parseProject = async (projectId, options = {}) => {
       const entities = nextData?.props?.pageProps?.initialState?.detailEntities?.project?.entities || {};
       const realization = entities[String(projectId)]?.realization || Object.values(entities)[0]?.realization;
       const renderIds = realization?.imageFileIds || [];
-      const resizerBase = `${BASE_URL}/resizer/v2/image`;
       if (renderIds.length > 0) {
         const fromNext = [];
         renderIds.forEach((fid) => {
           const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
           if (hex.length >= 10) {
             const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
-            fromNext.push(`${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
+            fromNext.push(`${RESIZER_BASE}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
           }
         });
         if (fromNext.length > 0) {
