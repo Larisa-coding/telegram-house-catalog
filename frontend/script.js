@@ -3,6 +3,41 @@ const API_URL = (window.location.origin || 'http://localhost:3000').replace(/\/$
 let currentOffset = 0;
 let isLoading = false;
 let hasMore = true;
+let showFavoritesOnly = false;
+
+// Управление избранным (localStorage)
+const FAVORITES_KEY = 'house_catalog_favorites';
+
+const getFavorites = () => {
+  const favorites = localStorage.getItem(FAVORITES_KEY);
+  return favorites ? JSON.parse(favorites) : [];
+};
+
+const saveFavorites = (favorites) => {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+};
+
+const toggleFavorite = (projectId) => {
+  const favorites = getFavorites();
+  const index = favorites.indexOf(projectId);
+  if (index > -1) {
+    favorites.splice(index, 1);
+  } else {
+    favorites.push(projectId);
+  }
+  saveFavorites(favorites);
+  updateFavoritesCount();
+  return favorites.includes(projectId);
+};
+
+const isFavorite = (projectId) => {
+  return getFavorites().includes(projectId);
+};
+
+const updateFavoritesCount = () => {
+  const count = getFavorites().length;
+  document.getElementById('favorites-count').textContent = count;
+};
 
 // Инициализация Telegram WebApp
 const tg = window.Telegram?.WebApp;
@@ -26,28 +61,62 @@ const loadProjects = async (reset = false) => {
   document.getElementById('error').style.display = 'none';
 
   try {
-    const filters = getFilters();
-    const params = new URLSearchParams({
-      ...filters,
-      limit: 9,
-      offset: currentOffset,
-    });
+    let projects = [];
+    
+    if (showFavoritesOnly) {
+      // Загружаем избранные проекты
+      const favorites = getFavorites();
+      if (favorites.length === 0) {
+        document.getElementById('projects-grid').innerHTML = 
+          '<div style="text-align: center; padding: 40px; color: #6C757D;">У вас пока нет избранных проектов</div>';
+        document.getElementById('load-more').style.display = 'none';
+        isLoading = false;
+        document.getElementById('loading').style.display = 'none';
+        return;
+      }
+      
+      // Загружаем проекты по ID из избранного
+      const promises = favorites.map(id => 
+        fetch(`${API_URL}/projects/${id}`)
+          .then(r => r.json())
+          .catch(() => ({ success: false }))
+      );
+      const results = await Promise.all(promises);
+      projects = results
+        .filter(r => r.success)
+        .map(r => r.data);
+      
+      // Применяем пагинацию
+      const paginatedProjects = projects.slice(currentOffset, currentOffset + 9);
+      hasMore = paginatedProjects.length === 9 && currentOffset + 9 < projects.length;
+      projects = paginatedProjects;
+    } else {
+      // Обычная загрузка с фильтрами
+      const filters = getFilters();
+      const params = new URLSearchParams({
+        ...filters,
+        limit: 9,
+        offset: currentOffset,
+      });
 
-    const response = await fetch(`${API_URL}/projects?${params}`);
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.error || 'Ошибка загрузки');
+      const response = await fetch(`${API_URL}/projects?${params}`);
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Ошибка загрузки');
+      }
+      
+      projects = data.data;
+      hasMore = projects.length === 9;
     }
 
-    if (data.data.length === 0 && currentOffset === 0) {
+    if (projects.length === 0 && currentOffset === 0) {
       document.getElementById('projects-grid').innerHTML = 
-        '<div style="text-align: center; padding: 40px; color: #666;">Проекты не найдены</div>';
+        '<div style="text-align: center; padding: 40px; color: #6C757D;">Проекты не найдены</div>';
       hasMore = false;
     } else {
-      renderProjects(data.data);
-      currentOffset += data.data.length;
-      hasMore = data.data.length === 9;
+      renderProjects(projects);
+      currentOffset += projects.length;
     }
 
     document.getElementById('load-more').style.display = hasMore ? 'block' : 'none';
@@ -56,6 +125,10 @@ const loadProjects = async (reset = false) => {
     console.error('Error loading projects:', error);
     document.getElementById('error').textContent = `Ошибка: ${error.message}`;
     document.getElementById('error').style.display = 'block';
+    if (currentOffset === 0) {
+      document.getElementById('projects-grid').innerHTML = 
+        '<div style="text-align: center; padding: 40px; color: #6C757D;">Ошибка загрузки проектов</div>';
+    }
   } finally {
     isLoading = false;
     document.getElementById('loading').style.display = 'none';
@@ -114,9 +187,17 @@ const createProjectCard = (project) => {
     ? `${project.price.toLocaleString('ru-RU')} ₽`
     : 'Цена по запросу';
   
+  const favoriteClass = isFavorite(project.id) ? 'active' : '';
+  const favoriteIcon = isFavorite(project.id) ? '❤️' : '🤍';
+  
   card.innerHTML = `
-    <img src="${imageUrl}" alt="${project.name}" class="project-image" 
-         onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
+    <div class="project-image-container">
+      <img src="${imageUrl}" alt="${project.name}" class="project-image" 
+           onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
+      <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${project.id}, this)" title="Добавить в избранное">
+        ${favoriteIcon}
+      </button>
+    </div>
     <div class="project-info">
       <div class="project-name">${escapeHtml(project.name)}</div>
       <div class="project-specs">${specs.join(' | ')}</div>
@@ -304,7 +385,46 @@ document.getElementById('filters-toggle').addEventListener('click', () => {
   filters.classList.toggle('expanded');
 });
 
+// Переключение избранного
+const toggleProjectFavorite = (projectId, button) => {
+  const isNowFavorite = toggleFavorite(projectId);
+  button.className = `favorite-btn ${isNowFavorite ? 'active' : ''}`;
+  button.innerHTML = isNowFavorite ? '❤️' : '🤍';
+  
+  // Если показываем только избранное, обновляем список
+  if (showFavoritesOnly) {
+    loadProjects(true);
+  }
+};
+
+// Показать избранные проекты
+const showFavorites = () => {
+  showFavoritesOnly = !showFavoritesOnly;
+  const btn = document.getElementById('favorites-btn');
+  if (showFavoritesOnly) {
+    btn.classList.add('active');
+  } else {
+    btn.classList.remove('active');
+  }
+  loadProjects(true);
+};
+
+// Открыть Telegram
+const openTelegram = () => {
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.openTelegramLink('https://t.me/larissa_malio');
+  } else {
+    window.open('https://t.me/larissa_malio', '_blank');
+  }
+};
+
+// События для header кнопок
+document.getElementById('favorites-btn').addEventListener('click', showFavorites);
+document.getElementById('telegram-btn').addEventListener('click', openTelegram);
+
 // Инициализация
+updateFavoritesCount();
 loadMaterials();
 loadProjects(true);
 

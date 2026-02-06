@@ -232,40 +232,41 @@ app.post('/api/cron/check', async (req, res) => {
   }
 });
 
-// POST /api/parse-batch - массовый парсинг проектов
+// POST /api/parse-batch - массовый парсинг проектов (без ограничений по ID)
 app.post('/api/parse-batch', async (req, res) => {
   try {
-    const { startId, endId, step = 1 } = req.body;
+    const { startId, endId, step = 1, maxProjects = 1000 } = req.body;
     const { parseProject } = require('./parser');
     
-    // Если не указаны startId и endId, используем умный поиск
+    // Определяем диапазон для проверки
     let actualStartId = startId;
     let actualEndId = endId;
     
     if (!startId || !endId) {
-      // Получаем минимальный и максимальный ID из БД
-      const minMax = await pool.query(
-        'SELECT MIN(project_id) as min_id, MAX(project_id) as max_id FROM projects'
+      // Получаем максимальный ID из БД
+      const maxResult = await pool.query(
+        'SELECT MAX(project_id) as max_id FROM projects'
       );
-      const minId = minMax.rows[0]?.min_id || 45;
-      const maxId = minMax.rows[0]?.max_id || 45;
+      const maxId = maxResult.rows[0]?.max_id;
       
-      // Если БД пустая, начинаем с 45 и проверяем широкий диапазон
-      if (minId === 45 && maxId === 45) {
+      if (!maxId) {
+        // БД пустая - начинаем с минимального известного ID
         actualStartId = 45;
-        actualEndId = 1000; // Проверяем первые 1000 проектов
+        actualEndId = 100000; // Проверяем очень широкий диапазон
       } else {
-        // Проверяем диапазон после последнего найденного
+        // Продолжаем с последнего найденного
         actualStartId = maxId + 1;
-        actualEndId = maxId + 500;
+        actualEndId = maxId + maxProjects; // Проверяем следующие N проектов
       }
     }
     
-    console.log(`Starting batch parsing from ${actualStartId} to ${actualEndId}`);
+    console.log(`Starting batch parsing from ${actualStartId} to ${actualEndId} (checking all IDs)`);
     let parsed = 0;
     let skipped = 0;
     let errors = 0;
     let notFound = 0;
+    let consecutiveNotFound = 0;
+    const maxConsecutiveNotFound = 100; // Останавливаемся если 100 подряд не найдено
     
     for (let projectId = actualStartId; projectId <= actualEndId; projectId += step) {
       try {
@@ -284,9 +285,17 @@ app.post('/api/parse-batch', async (req, res) => {
         const projectData = await parseProject(projectId.toString());
         
         if (!projectData) {
-          skipped++;
+          notFound++;
+          consecutiveNotFound++;
+          // Если много подряд не найдено, возможно достигли конца диапазона
+          if (consecutiveNotFound >= maxConsecutiveNotFound && !startId && !endId) {
+            console.log(`Stopping: ${maxConsecutiveNotFound} consecutive projects not found`);
+            break;
+          }
           continue;
         }
+        
+        consecutiveNotFound = 0; // Сбрасываем счетчик при успешном парсинге
         
         // Сохраняем в БД
         const insertQuery = `

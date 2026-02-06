@@ -46,8 +46,13 @@ body {
   background: transparent;
   color: var(--text-dark);
   padding: 20px;
-  text-align: center;
   margin-bottom: 15px;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .header h1 {
@@ -55,6 +60,68 @@ body {
   font-weight: 300;
   letter-spacing: 2px;
   color: var(--text-dark);
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.header-btn {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Montserrat', sans-serif;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+
+.header-btn:hover {
+  background: rgba(168, 216, 213, 0.25);
+  transform: translateY(-2px);
+}
+
+.header-btn .icon {
+  font-size: 18px;
+}
+
+.header-btn .count {
+  background: var(--mint-darker);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  text-align: center;
+}
+
+.favorites-btn.active .icon {
+  color: #E76F51;
+}
+
+.telegram-btn {
+  background: linear-gradient(135deg, #0088cc 0%, #229ED9 100%);
+  border-color: #0088cc;
+  color: white;
+}
+
+.telegram-btn:hover {
+  background: linear-gradient(135deg, #229ED9 0%, #0088cc 100%);
+}
+
+.telegram-btn .icon {
+  font-size: 16px;
 }
 
 /* Сворачиваемый фильтр */
@@ -221,11 +288,49 @@ body {
   border-color: var(--mint-border);
 }
 
-.project-image {
+.project-image-container {
+  position: relative;
   width: 100%;
   height: 220px;
+  overflow: hidden;
+}
+
+.project-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   background: linear-gradient(135deg, var(--mint-color) 0%, var(--mint-darker) 100%);
+}
+
+.favorite-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  transition: all 0.3s;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.favorite-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 1);
+}
+
+.favorite-btn.active {
+  background: rgba(231, 111, 81, 0.2);
+  border-color: #E76F51;
 }
 
 .project-info {
