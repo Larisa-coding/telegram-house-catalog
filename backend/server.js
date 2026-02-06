@@ -325,13 +325,14 @@ app.post('/api/parse-batch', async (req, res) => {
         
         parsed++;
         
-        // Небольшая задержка между запросами
+        // Небольшая задержка между запросами (чтобы не перегружать сайт)
         if (parsed % 10 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       } catch (error) {
-        if (error.message && error.message.includes('404') || error.message.includes('not found')) {
+        if (error.message && (error.message.includes('404') || error.message.includes('not found'))) {
           notFound++;
+          consecutiveNotFound++;
         } else {
           console.error(`Error parsing project ${projectId}:`, error.message);
           errors++;

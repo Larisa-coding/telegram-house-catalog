@@ -69,18 +69,29 @@ curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-
 
 ## Рекомендации
 
-1. **Первый запуск**: Используй автоматический режим без параметров - парсер начнет с ID 45
+1. **Первый запуск (рекомендуется)**: Автоматический режим - парсер проверит очень широкий диапазон
    ```bash
    curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
      -H "Content-Type: application/json" \
      -d '{}'
    ```
+   Парсер автоматически:
+   - Начнет с ID 45 (если БД пустая)
+   - Проверит до 100,000 ID (или до последнего найденного + 1000)
+   - Остановится если 100 подряд проектов не найдено
 
 2. **Для проверки конкретного диапазона**: Укажи startId и endId
    ```bash
    curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
      -H "Content-Type: application/json" \
-     -d '{"startId": 45, "endId": 200}'
+     -d '{"startId": 40000, "endId": 70000}'
+   ```
+
+3. **Для проверки очень широкого диапазона**: Укажи большой endId
+   ```bash
+   curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
+     -H "Content-Type: application/json" \
+     -d '{"startId": 45, "endId": 100000}'
    ```
 
 3. **Проверяй логи** Railway на ошибки

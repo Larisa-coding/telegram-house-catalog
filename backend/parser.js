@@ -44,52 +44,71 @@ const parseProject = async (projectId) => {
                  $('.project-title').text().trim() ||
                  $('[class*="title"]').first().text().trim();
 
-    // Площадь
+    // Площадь дома (ищем "Площадь дома" или "Площадь")
     let area = null;
+    // Ищем в структурированных данных
     $('*').each((i, el) => {
       const text = $(el).text();
-      const match = text.match(/(\d+[,.]?\d*)\s*м[²2]/i);
+      // Ищем "Площадь дома" с числом
+      const match = text.match(/Площадь\s+дома[:\s]+(\d+[,.]?\d*)\s*м[²2]/i) ||
+                    text.match(/(\d+[,.]?\d*)\s*м[²2]/i);
       if (match && !area) {
         area = parseFloat(match[1].replace(',', '.'));
       }
     });
 
-    // Цена
+    // Цена (ищем "от X ₽")
     let price = null;
     $('*').each((i, el) => {
       const text = $(el).text();
-      const match = text.match(/(\d[\d\s]*)\s*₽/);
+      // Ищем "от X ₽" или просто "X ₽"
+      const match = text.match(/от\s+(\d[\d\s]*)\s*₽/i) ||
+                    text.match(/(\d[\d\s]*)\s*₽/);
       if (match && !price) {
-        price = parseFloat(match[1].replace(/\s/g, ''));
+        price = parseFloat(match[1].replace(/\s/g, '').replace(',', ''));
       }
     });
 
-    // Материал
+    // Материал (ищем в разделе "Конструктивные решения" -> "Материал наружных стен")
     let material = null;
-    const materialText = $('body').text().toLowerCase();
-    if (materialText.includes('брус')) material = 'брус';
-    else if (materialText.includes('газобетон')) material = 'газобетон';
+    const bodyText = $('body').text();
+    
+    // Ищем конкретные материалы
+    if (bodyText.match(/Материал наружных стен[^]*?брус/i) || 
+        bodyText.match(/Дома из бруса/i) ||
+        bodyText.toLowerCase().includes('брус')) {
+      material = 'брус';
+    } else if (bodyText.match(/Материал наружных стен[^]*?газобетон/i) ||
+               bodyText.match(/Дома из газобетона/i) ||
+               bodyText.toLowerCase().includes('газобетон')) {
+      material = 'газобетон';
+    }
 
-    // Количество спален
+    // Количество спален (ищем в разделе "Объемно-планировочные решения")
     let bedrooms = null;
     $('*').each((i, el) => {
       const text = $(el).text();
-      const match = text.match(/(\d+)\s*спал/i);
+      // Ищем "Спальни: X" или "Спальни\nX"
+      const match = text.match(/Спальни[:\s]+(\d+)/i);
       if (match && !bedrooms) {
         bedrooms = parseInt(match[1]);
       }
     });
 
-    // Характеристики
-    const bodyText = $('body').text().toLowerCase();
-    const hasKitchenLiving = bodyText.includes('кухня-гостиная') || 
-                            bodyText.includes('кухня гостиная');
-    const hasGarage = bodyText.includes('гараж');
-    const hasSecondFloor = bodyText.includes('2 этаж') || 
-                          bodyText.includes('второй этаж') ||
-                          bodyText.includes('двухэтажный');
-    const hasTerrace = bodyText.includes('терраса') || 
-                      bodyText.includes('веранда');
+    // Характеристики (ищем в разделе "Объемно-планировочные решения")
+    const bodyTextLower = bodyText.toLowerCase();
+    const hasKitchenLiving = bodyTextLower.includes('совмещенная кухня-гостиная') || 
+                            bodyTextLower.includes('кухня-гостиная') ||
+                            bodyTextLower.includes('кухня гостиная');
+    const hasGarage = bodyTextLower.includes('пристроенный гараж') ||
+                     bodyTextLower.includes('крытая автостоянка') ||
+                     bodyTextLower.includes('гараж');
+    const hasSecondFloor = bodyText.match(/Количество надземных этажей[:\s]+2/i) ||
+                          bodyTextLower.includes('2 этаж') || 
+                          bodyTextLower.includes('второй этаж') ||
+                          bodyTextLower.includes('двухэтажный');
+    const hasTerrace = bodyTextLower.includes('терраса') || 
+                      bodyTextLower.includes('веранда');
 
     // Описание
     const description = $('.description').text().trim() ||
