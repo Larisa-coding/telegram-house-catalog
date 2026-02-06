@@ -296,58 +296,81 @@ const parseProject = async (projectId, options = {}) => {
     housePhotos.length = 0;
     housePhotos.push(...bigFirst, ...tiny);
 
-    // 4. ПОЭТАЖНЫЙ ПЛАН — из __NEXT_DATA__ (projectPlans.imageFileIds)
-    try {
-      const nextDataEl = $('script#__NEXT_DATA__');
-      if (nextDataEl.length) {
-        const nextData = JSON.parse(nextDataEl.html());
-        const state = nextData?.props?.pageProps?.initialState || {};
-        const findProject = (obj) => {
-          if (!obj || typeof obj !== 'object') return null;
-          if (obj.projectPlans && Array.isArray(obj.projectPlans)) return obj;
-          for (const k of Object.keys(obj)) {
-            const found = findProject(obj[k]);
-            if (found) return found;
-          }
-          return null;
-        };
-        const project = findProject(state);
-        if (project?.projectPlans) {
-          const resizerBase = `${BASE_URL}/resizer/v2/image`;
-          project.projectPlans.forEach((p) => {
-            (p.imageFileIds || []).forEach((fid) => {
-              const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
-              if (hex.length >= 10) {
-                const pairs = hex.match(/.{2}/g) || [];
-                const imageUrl = pairs.join('%2F');
-                const url = `${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`;
-                addTo(floorPlans, url, 25);
-              }
-            });
-          });
-        }
-      }
-    } catch (e) { /* ignore */ }
-
-    // 5. Дополнительно: img с plan/планир/этаж в src или alt (повышаем качество для читаемости)
+    // 4. ПОЭТАЖНЫЕ ПЛАНЫ — PlanList_plan_switcher, img alt="План 1 этажа" / "План 2 этажа"
+    // Один этаж — только план 1, два этажа — план 1 и план 2 (если есть на странице)
     const upgradePlanUrl = (url) => {
       if (!url || typeof url !== 'string') return url;
       return url.replace(/width=\d+/, 'width=1200').replace(/quality=\d+/, 'quality=90').replace(/dpr=[\d.]+/, 'dpr=1.5');
     };
-    $('img[src*="plan"], img[src*="планир"], img[src*="этаж"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
-      let src = getImgSrc(el);
-      if (src) {
-        src = upgradePlanUrl(src);
-        addTo(floorPlans, src, 25);
-      }
+    const addFloorPlan = (src) => {
+      if (!src || seen.has(src)) return;
+      let s = upgradePlanUrl(src);
+      if (!s.startsWith('http')) s = s.startsWith('//') ? `https:${s}` : `${BASE_URL}${s.startsWith('/') ? s : '/' + s}`;
+      seen.add(s);
+      floorPlans.push(s);
+    };
+    const plan1Imgs = [];
+    const plan2Imgs = [];
+    $('[class*="PlanList_plan"], [class*="PlanList_plar"], [class*="swiper-slide"] img').each((i, el) => {
+      const alt = ($(el).attr('alt') || '').toLowerCase();
+      const src = getImgSrc(el);
+      if (!src) return;
+      if (/план\s*1\s*этаж|план\s*первого\s*этаж|1\s*этаж/.test(alt)) plan1Imgs.push(src);
+      else if (/план\s*2\s*этаж|план\s*второго\s*этаж|2\s*этаж/.test(alt)) plan2Imgs.push(src);
     });
-    $('[class*="PlanList_plan"], [class*="plan"], [class*="floor"], [class*="layout"], [class*="планиров"] img').each((i, el) => {
-      let src = getImgSrc(el);
-      if (src && isFloorPlan(src)) {
-        src = upgradePlanUrl(src);
-        addTo(floorPlans, src, 25);
-      }
-    });
+    if (plan1Imgs.length > 0) addFloorPlan(plan1Imgs[0]);
+    if (hasSecondFloor && plan2Imgs.length > 0) addFloorPlan(plan2Imgs[0]);
+    if (floorPlans.length === 0) {
+      let fbPlan1 = null;
+      let fbPlan2 = null;
+      $('img[alt*="План"], img[alt*="план"]').each((i, el) => {
+        const alt = ($(el).attr('alt') || '').toLowerCase();
+        const src = getImgSrc(el);
+        if (!src || !/этаж/.test(alt)) return;
+        const isPlan2 = /2\s*этаж|второго\s*этаж/.test(alt);
+        if (isPlan2) { if (hasSecondFloor && !fbPlan2) fbPlan2 = src; }
+        else if (!fbPlan1) fbPlan1 = src;
+      });
+      if (fbPlan1) addFloorPlan(fbPlan1);
+      if (hasSecondFloor && fbPlan2) addFloorPlan(fbPlan2);
+    }
+    if (floorPlans.length === 0) {
+      try {
+        const nextDataEl = $('script#__NEXT_DATA__');
+        if (nextDataEl.length) {
+          const nextData = JSON.parse(nextDataEl.html());
+          const findProject = (obj) => {
+            if (!obj || typeof obj !== 'object') return null;
+            if (obj.projectPlans && Array.isArray(obj.projectPlans)) return obj;
+            for (const k of Object.keys(obj)) {
+              const found = findProject(obj[k]);
+              if (found) return found;
+            }
+            return null;
+          };
+          const project = findProject(nextData?.props?.pageProps?.initialState || {});
+          if (project?.projectPlans) {
+            const resizerBase = `${BASE_URL}/resizer/v2/image`;
+            const maxPlans = hasSecondFloor ? 2 : 1;
+            let count = 0;
+            for (const p of project.projectPlans) {
+              if (count >= maxPlans) break;
+              for (const fid of (p.imageFileIds || [])) {
+                if (count >= maxPlans) break;
+                const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
+                if (hex.length >= 10) {
+                  const pairs = hex.match(/.{2}/g) || [];
+                  const imageUrl = pairs.join('%2F');
+                  const url = `${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`;
+                  addFloorPlan(url);
+                  count++;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
 
     const images = [...housePhotos, ...floorPlans].slice(0, 50);
 
