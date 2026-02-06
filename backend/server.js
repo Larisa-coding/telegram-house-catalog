@@ -16,9 +16,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(frontendDir));
 
-// Punycode для строим.дом.рф (Node.js лучше работает с ASCII-доменами)
-const DOM_RF_PUNYCODE = 'https://xn--80az8a.xn--d1aqf.xn--p1ai';
-
 // GET /api/proxy-image?url=... — прокси изображений (обход CORS для строим.дом.рф)
 app.get('/api/proxy-image', async (req, res) => {
   try {
@@ -26,29 +23,25 @@ app.get('/api/proxy-image', async (req, res) => {
     if (!rawUrl || typeof rawUrl !== 'string') {
       return res.status(400).json({ error: 'Missing url' });
     }
-    let url = decodeURIComponent(rawUrl);
+    const url = decodeURIComponent(rawUrl);
     if (!url.startsWith('https://') && !url.startsWith('http://')) {
       return res.status(400).json({ error: 'Invalid url' });
     }
-    // IDN → punycode для надёжного запроса
-    url = url.replace(/https?:\/\/строим\.дом\.рф/gi, DOM_RF_PUNYCODE);
     const resp = await axios.get(url, {
-      responseType: 'arraybuffer',
+      responseType: 'stream',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/*,*/*;q=0.8',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Referer': 'https://строим.дом.рф/',
       },
-      timeout: 25000,
-      maxRedirects: 5,
-      validateStatus: (s) => s >= 200 && s < 400,
+      timeout: 20000,
     });
-    const ct = (resp.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
+    const ct = resp.headers['content-type'] || 'image/jpeg';
     res.set('Cache-Control', 'public, max-age=86400');
     res.set('Content-Type', ct);
-    res.send(Buffer.from(resp.data));
+    resp.data.pipe(res);
   } catch (e) {
-    const errMsg = e.response?.status ? `HTTP ${e.response.status}` : e.message;
-    console.error('proxy-image:', errMsg, req.query.url?.substring(0, 80));
+    console.error('proxy-image:', e.message);
     res.status(502).json({ error: 'Proxy error' });
   }
 });
