@@ -75,7 +75,14 @@ const getFilters = () => {
   if (maxArea) filters.maxArea = maxArea;
 
   const search = document.getElementById('search-filter').value.trim();
-  if (search) filters.search = search;
+  if (search) {
+    // Если поиск - число, ищем по project_id, иначе по названию
+    if (/^\d+$/.test(search)) {
+      filters.projectId = search;
+    } else {
+      filters.search = search;
+    }
+  }
 
   return filters;
 };
@@ -198,17 +205,33 @@ const contactManager = (projectId) => {
 // Загрузка материалов для фильтра
 const loadMaterials = async () => {
   try {
-    const response = await fetch(`${API_URL}/materials`);
-    const data = await response.json();
-
-    if (data.success) {
-      const select = document.getElementById('material-filter');
-      data.data.forEach(material => {
-        const option = document.createElement('option');
-        option.value = material;
-        option.textContent = material;
-        select.appendChild(option);
-      });
+    const select = document.getElementById('material-filter');
+    
+    // Добавляем стандартные материалы
+    const materials = ['брус', 'газобетон'];
+    materials.forEach(material => {
+      const option = document.createElement('option');
+      option.value = material;
+      option.textContent = material.charAt(0).toUpperCase() + material.slice(1);
+      select.appendChild(option);
+    });
+    
+    // Также загружаем уникальные материалы из БД
+    try {
+      const response = await fetch(`${API_URL}/materials`);
+      const data = await response.json();
+      if (data.success && data.data.length > 0) {
+        data.data.forEach(material => {
+          if (!materials.includes(material.toLowerCase())) {
+            const option = document.createElement('option');
+            option.value = material;
+            option.textContent = material;
+            select.appendChild(option);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error loading materials from API:', error);
     }
   } catch (error) {
     console.error('Error loading materials:', error);

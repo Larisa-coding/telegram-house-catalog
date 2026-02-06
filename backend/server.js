@@ -12,8 +12,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
-// Статика для изображений
-app.use('/images', express.static(path.join(__dirname, '../frontend/images')));
 
 // Инициализация БД при старте
 initDB().catch(console.error);
@@ -28,37 +26,19 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 // Webhook endpoint for Telegram (нужен только в webhook режиме)
 app.post('/api/telegram/webhook', (req, res) => {
   try {
-    console.log('=== Webhook received ===');
-    console.log('Update ID:', req.body?.update_id);
-    console.log('Message:', req.body?.message?.text || 'No message');
-    console.log('Callback query:', req.body?.callback_query?.data || 'No callback');
-    
-    if (!bot) {
-      console.error('Bot not initialized');
-      return res.sendStatus(503);
-    }
-    
-    // Отвечаем сразу, чтобы Telegram не повторял запрос
-    res.sendStatus(200);
-    
-    // Обрабатываем обновление асинхронно
-    setImmediate(() => {
-      try {
-        bot.processUpdate(req.body);
-      } catch (error) {
-        console.error('Error processing update:', error);
-      }
-    });
+    if (!bot) return res.sendStatus(503);
+    bot.processUpdate(req.body);
+    return res.sendStatus(200);
   } catch (error) {
     console.error('Telegram webhook error:', error);
-    res.sendStatus(500);
+    return res.sendStatus(500);
   }
 });
 
 // GET /api/projects - все проекты с фильтрами
 app.get('/api/projects', async (req, res) => {
   try {
-    const { material, minArea, maxArea, search, limit = 50, offset = 0 } = req.query;
+    const { material, minArea, maxArea, search, projectId, limit = 50, offset = 0 } = req.query;
     
     let query = 'SELECT * FROM projects WHERE 1=1';
     const params = [];
@@ -82,7 +62,11 @@ app.get('/api/projects', async (req, res) => {
       params.push(parseFloat(maxArea));
     }
 
-    if (search) {
+    if (projectId) {
+      paramCount++;
+      query += ` AND project_id = $${paramCount}`;
+      params.push(parseInt(projectId));
+    } else if (search) {
       paramCount++;
       query += ` AND (name ILIKE $${paramCount} OR description ILIKE $${paramCount})`;
       params.push(`%${search}%`);
@@ -236,63 +220,102 @@ app.get('/api/materials', async (req, res) => {
   }
 });
 
+// Ручной запуск cron для проверки новых проектов
+app.post('/api/cron/check', async (req, res) => {
+  try {
+    const { checkNewProjects } = require('./cron');
+    await checkNewProjects();
+    res.json({ success: true, message: 'Cron job executed' });
+  } catch (error) {
+    console.error('Error running cron:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/parse-batch - массовый парсинг проектов
+app.post('/api/parse-batch', async (req, res) => {
+  try {
+    const { startId = 77000, endId = 78000, contractorId = 9465 } = req.body;
+    const { parseProject } = require('./parser');
+    
+    console.log(`Starting batch parsing from ${startId} to ${endId}`);
+    let parsed = 0;
+    let skipped = 0;
+    let errors = 0;
+    
+    for (let projectId = startId; projectId <= endId; projectId++) {
+      try {
+        // Проверяем, есть ли уже проект
+        const existing = await pool.query(
+          'SELECT id FROM projects WHERE project_id = $1',
+          [projectId]
+        );
+        
+        if (existing.rows.length > 0) {
+          skipped++;
+          continue;
+        }
+        
+        // Парсим проект
+        const projectData = await parseProject(projectId.toString());
+        
+        if (!projectData) {
+          skipped++;
+          continue;
+        }
+        
+        // Сохраняем в БД
+        const insertQuery = `
+          INSERT INTO projects (
+            project_id, name, area, material, price, bedrooms,
+            has_kitchen_living, has_garage, has_second_floor, has_terrace,
+            description, images, url
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ON CONFLICT (project_id) DO NOTHING
+          RETURNING *
+        `;
+        await pool.query(insertQuery, [
+          projectData.project_id,
+          projectData.name,
+          projectData.area,
+          projectData.material,
+          projectData.price,
+          projectData.bedrooms,
+          projectData.has_kitchen_living,
+          projectData.has_garage,
+          projectData.has_second_floor,
+          projectData.has_terrace,
+          projectData.description,
+          JSON.stringify(projectData.images),
+          projectData.url,
+        ]);
+        
+        parsed++;
+        
+        // Небольшая задержка между запросами
+        if (projectId % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (error) {
+        console.error(`Error parsing project ${projectId}:`, error.message);
+        errors++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Batch parsing completed`,
+      stats: { parsed, skipped, errors, total: endId - startId + 1 }
+    });
+  } catch (error) {
+    console.error('Error in batch parsing:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Webhook info endpoint (для проверки статуса webhook)
-app.get('/api/telegram/webhook-info', async (req, res) => {
-  try {
-    if (!bot) {
-      return res.json({ error: 'Bot not initialized' });
-    }
-    const info = await bot.getWebHookInfo();
-    res.json({ success: true, webhookInfo: info });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Endpoint для переустановки webhook
-app.post('/api/telegram/reinstall-webhook', async (req, res) => {
-  try {
-    if (!bot) {
-      return res.json({ error: 'Bot not initialized' });
-    }
-    
-    const publicBaseUrl = process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || '';
-    if (!publicBaseUrl) {
-      return res.json({ error: 'PUBLIC_BASE_URL not set' });
-    }
-    
-    let webhookBaseUrl = publicBaseUrl;
-    if (!webhookBaseUrl.startsWith('http')) {
-      webhookBaseUrl = `https://${webhookBaseUrl}`;
-    }
-    const webhookUrl = `${webhookBaseUrl}/api/telegram/webhook`;
-    
-    // Удаляем старый webhook
-    await bot.deleteWebHook();
-    console.log('Old webhook deleted');
-    
-    // Устанавливаем новый
-    await bot.setWebHook(webhookUrl);
-    console.log(`Webhook reinstalled: ${webhookUrl}`);
-    
-    // Проверяем статус
-    const info = await bot.getWebHookInfo();
-    
-    res.json({ 
-      success: true, 
-      message: 'Webhook reinstalled',
-      webhookUrl,
-      webhookInfo: info 
-    });
-  } catch (error) {
-    console.error('Error reinstalling webhook:', error);
-    res.json({ success: false, error: error.message });
-  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

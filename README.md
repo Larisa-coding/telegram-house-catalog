@@ -4,7 +4,10 @@
 
 ## 🚀 Быстрый деплой на Railway
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/new?repository=https://github.com/Larisa-coding/telegram-house-catalog)
+1. Откройте https://railway.app/new
+2. Выберите "Deploy from GitHub repo"
+3. В поиске введите: `telegram-house-catalog` или `Larisa-coding/telegram-house-catalog`
+4. Или создайте "Empty Project" и добавьте "+ New" → "GitHub Repo" → вставьте URL: `https://github.com/Larisa-coding/telegram-house-catalog`
 
 ## Структура проекта
 

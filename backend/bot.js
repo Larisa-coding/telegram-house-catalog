@@ -2,13 +2,8 @@ const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-// Убеждаемся, что WEB_APP_URL начинается с https:// и нет пробелов
-let WEB_APP_URL = (process.env.WEB_APP_URL || 'https://your-app.railway.app').trim();
-if (WEB_APP_URL && !WEB_APP_URL.startsWith('http')) {
-  WEB_APP_URL = `https://${WEB_APP_URL}`;
-}
-// Если START_IMAGE_URL не задан, используем локальный файл через статику
-const START_IMAGE_URL = process.env.START_IMAGE_URL || `${WEB_APP_URL}/images/welcome.jpg`;
+const WEB_APP_URL = process.env.WEB_APP_URL || 'https://your-app.railway.app';
+const START_IMAGE_URL = process.env.START_IMAGE_URL;
 
 /**
  * Создает бота в режиме:
@@ -25,21 +20,8 @@ const createBot = () => {
     polling: !isWebhookMode,
   });
 
-  console.log(`Bot initialized in ${isWebhookMode ? 'webhook' : 'polling'} mode`);
-  console.log(`WEB_APP_URL: ${WEB_APP_URL}`);
-
-  // Обработчик всех сообщений для отладки
-  bot.on('message', (msg) => {
-    console.log('=== Message received ===');
-    console.log('Text:', msg.text);
-    console.log('Chat ID:', msg.chat.id);
-  });
-
   // /start
   bot.onText(/\/start/, (msg) => {
-    console.log('=== /start command received ===');
-    console.log('Chat ID:', msg.chat.id);
-    console.log('From:', msg.from?.username || msg.from?.first_name);
     const chatId = msg.chat.id;
 
     const welcomeText =
@@ -53,47 +35,26 @@ const createBot = () => {
       '💬 Связаться с менеджером одним кликом\n\n' +
       'Нажми «Открыть каталог» — и найди свой идеальный дом! 🏡';
 
-    // Убеждаемся, что URL без пробелов
-    const cleanWebAppUrl = WEB_APP_URL.trim();
-    console.log('WEB_APP_URL:', JSON.stringify(cleanWebAppUrl));
-    
     const replyMarkup = {
       inline_keyboard: [
         [
           {
             text: '🏠 Открыть каталог',
-            web_app: { url: cleanWebAppUrl },
+            web_app: { url: WEB_APP_URL },
           },
         ],
       ],
     };
 
-    // Проверяем, что START_IMAGE_URL это валидный HTTP/HTTPS URL
-    const hasValidImageUrl = START_IMAGE_URL && 
-                             (START_IMAGE_URL.startsWith('http://') || START_IMAGE_URL.startsWith('https://'));
-
-    if (!hasValidImageUrl) {
-      console.log('Sending welcome message without photo (no valid image URL)');
-      bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup })
-        .then(() => console.log('Welcome message sent successfully'))
-        .catch((err) => console.error('Error sending welcome message:', err));
+    if (!START_IMAGE_URL) {
+      bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup });
       return;
     }
 
-    console.log('Sending welcome photo:', START_IMAGE_URL);
     bot.sendPhoto(chatId, START_IMAGE_URL, {
       caption: welcomeText,
       reply_markup: replyMarkup,
-    })
-      .then(() => console.log('Welcome photo sent successfully'))
-      .catch((err) => {
-        console.error('Error sending welcome photo:', err.message);
-        // Если фото не отправилось, отправляем только текст
-        console.log('Falling back to text-only message');
-        bot.sendMessage(chatId, welcomeText, { reply_markup: replyMarkup })
-          .then(() => console.log('Welcome message sent successfully (fallback)'))
-          .catch((err2) => console.error('Error sending fallback message:', err2));
-      });
+    });
   });
 
   bot.on('callback_query', (query) => {
@@ -106,14 +67,13 @@ const createBot = () => {
       const projectId = data.replace('project_', '');
       bot.answerCallbackQuery(query.id, { text: 'Открываю детали проекта...' });
 
-      const projectUrl = `${WEB_APP_URL.trim()}?project=${projectId}`;
       bot.sendMessage(chatId, '🏠 Открываю проект...', {
         reply_markup: {
           inline_keyboard: [
             [
               {
                 text: '📋 Посмотреть проект',
-                web_app: { url: projectUrl },
+                web_app: { url: `${WEB_APP_URL}?project=${projectId}` },
               },
             ],
           ],
@@ -133,28 +93,11 @@ const createBot = () => {
 
   if (isWebhookMode) {
     const webhookPath = '/api/telegram/webhook';
-    // Убеждаемся, что publicBaseUrl начинается с https:// и нет пробелов
-    let webhookBaseUrl = publicBaseUrl.trim().replace(/\/$/, '');
-    if (!webhookBaseUrl.startsWith('http')) {
-      webhookBaseUrl = `https://${webhookBaseUrl}`;
-    }
-    const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
+    const webhookUrl = `${publicBaseUrl.replace(/\/$/, '')}${webhookPath}`;
 
-    // Сначала удаляем старый webhook, потом устанавливаем новый
     bot
-      .deleteWebHook()
-      .then(() => {
-        console.log('Old webhook deleted');
-        return bot.setWebHook(webhookUrl);
-      })
-      .then(() => {
-        console.log(`Telegram webhook set: ${webhookUrl}`);
-        // Проверяем статус webhook
-        return bot.getWebHookInfo();
-      })
-      .then((info) => {
-        console.log('Webhook info:', JSON.stringify(info, null, 2));
-      })
+      .setWebHook(webhookUrl)
+      .then(() => console.log(`Telegram webhook set: ${webhookUrl}`))
       .catch((err) => console.error('Failed to set Telegram webhook:', err.message));
   } else {
     console.log('Telegram bot started (polling mode)');
