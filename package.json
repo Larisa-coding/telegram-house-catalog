@@ -6,7 +6,8 @@
     "install-backend": "cd backend && npm install",
     "start": "cd backend && node server.js",
     "dev": "cd backend && nodemon server.js",
-    "test-parser": "cd backend && node test-parser.js"
+    "test-parser": "cd backend && node test-parser.js",
+    "fill-projects": "cd backend && node fill-projects.js"
   },
   "keywords": ["telegram", "webapp", "catalog", "houses"],
   "author": "",

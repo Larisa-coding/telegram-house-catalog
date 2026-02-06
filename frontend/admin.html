@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Админ — Каталог домов</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .admin-container { max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
+    .admin-card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .admin-card h2 { font-size: 1.25rem; margin-bottom: 1rem; color: var(--text-dark); }
+    .admin-form label { display: block; margin-bottom: 0.35rem; font-weight: 500; }
+    .admin-form input, .admin-form textarea { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--glass-border); border-radius: 8px; margin-bottom: 1rem; font-size: 1rem; }
+    .admin-form textarea { min-height: 100px; resize: vertical; }
+    .admin-form button { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; }
+    .btn-add { background: var(--mint-border); color: #fff; }
+    .btn-add:hover { background: var(--mint-darker); }
+    .btn-batch { background: var(--text-dark); color: #fff; }
+    .btn-batch:hover { opacity: 0.9; }
+    .admin-msg { margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none; }
+    .admin-msg.success { background: rgba(40,167,69,0.15); color: #155724; display: block; }
+    .admin-msg.error { background: rgba(220,53,69,0.15); color: #721c24; display: block; }
+    .admin-link { display: inline-block; margin-top: 1rem; color: var(--mint-border); text-decoration: none; }
+    .admin-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="admin-container">
+    <h1 style="margin-bottom: 1.5rem;">Админ-панель</h1>
+
+    <div class="admin-card">
+      <h2>Добавить проект по ID</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Введи ID проекта с сайта строим.дом.рф — карточка создастся автоматически (название, площадь, фото, описание).</p>
+      <form id="add-one-form" class="admin-form">
+        <label for="project-id">ID проекта (строим.дом.рф)</label>
+        <input type="text" id="project-id" name="projectId" placeholder="Например: 77279" required inputmode="numeric" pattern="[0-9]+">
+        <button type="submit" class="btn-add" id="add-one-btn">Добавить проект</button>
+      </form>
+      <div id="add-one-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Заполнить каталог по списку ID</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Несколько ID через запятую — все проекты подтянутся с строим.дом.рф и появятся в каталоге.</p>
+      <form id="batch-form" class="admin-form">
+        <label for="project-ids">ID через запятую</label>
+        <textarea id="project-ids" name="projectIds" placeholder="77279, 12345, 67890"></textarea>
+        <button type="submit" class="btn-batch" id="batch-btn">Заполнить каталог</button>
+      </form>
+      <div id="batch-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>База пользователей</h2>
+      <button id="load-users-btn" class="btn-batch" style="margin-bottom: 1rem;">Обновить список</button>
+      <div id="users-list" style="max-height: 400px; overflow-y: auto;">
+        <p style="color: var(--text-light);">Нажмите «Обновить список» для загрузки пользователей</p>
+      </div>
+    </div>
+
+    <a href="index.html" class="admin-link">← Вернуться в каталог</a>
+  </div>
+  <script>
+    const API_URL = (window.location.origin || 'http://localhost:3000').replace(/\/$/, '') + '/api';
+
+    const showMsg = (el, text, isError) => {
+      el.textContent = text;
+      el.className = 'admin-msg ' + (isError ? 'error' : 'success');
+      el.style.display = 'block';
+    };
+
+    document.getElementById('add-one-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('project-id').value.trim().replace(/\D/g, '');
+      const btn = document.getElementById('add-one-btn');
+      const msg = document.getElementById('add-one-msg');
+      if (!id) {
+        showMsg(msg, 'Введи числовой ID проекта.', true);
+        return;
+      }
+      btn.disabled = true;
+      msg.style.display = 'none';
+      try {
+        const res = await fetch(`${API_URL}/parse/${id}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, data.message === 'Project updated' ? 'Проект обновлён.' : 'Проект добавлен в каталог.');
+        } else {
+          showMsg(msg, data.error || 'Ошибка добавления.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById('batch-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = document.getElementById('project-ids').value.trim();
+      const ids = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      const btn = document.getElementById('batch-btn');
+      const msg = document.getElementById('batch-msg');
+      if (ids.length === 0) {
+        showMsg(msg, 'Введи хотя бы один ID.', true);
+        return;
+      }
+      btn.disabled = true;
+      msg.style.display = 'none';
+      try {
+        const res = await fetch(`${API_URL}/parse-batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectIds: ids }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const text = `Добавлено: ${data.created}, обновлено: ${data.updated}.${data.failed?.length ? ' Не найдены: ' + data.failed.join(', ') : ''}`;
+          showMsg(msg, text, data.failed?.length > 0);
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    const loadUsers = async () => {
+      const list = document.getElementById('users-list');
+      list.innerHTML = '<p style="color: var(--text-light);">Загрузка...</p>';
+      try {
+        const res = await fetch(`${API_URL}/users`);
+        const data = await res.json();
+        if (data.success && data.data.length > 0) {
+          const html = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+              <thead>
+                <tr style="background: var(--glass-border); text-align: left;">
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">ID</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Никнейм</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Имя</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Первое посещение</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Последнее посещение</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Визитов</th>
+                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Сообщений</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.data.map(u => `
+                  <tr style="border-bottom: 1px solid var(--glass-border);">
+                    <td style="padding: 0.5rem;">${u.telegram_id}</td>
+                    <td style="padding: 0.5rem;">${u.username || '-'}</td>
+                    <td style="padding: 0.5rem;">${[u.first_name, u.last_name].filter(Boolean).join(' ') || '-'}</td>
+                    <td style="padding: 0.5rem; font-size: 0.85rem;">${u.first_visit ? new Date(u.first_visit).toLocaleString('ru-RU') : '-'}</td>
+                    <td style="padding: 0.5rem; font-size: 0.85rem;">${u.last_visit ? new Date(u.last_visit).toLocaleString('ru-RU') : '-'}</td>
+                    <td style="padding: 0.5rem; text-align: center;">${u.visit_count || 0}</td>
+                    <td style="padding: 0.5rem; text-align: center;">${u.message_count || 0}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          list.innerHTML = html;
+        } else {
+          list.innerHTML = '<p style="color: var(--text-light);">Пользователей пока нет</p>';
+        }
+      } catch (err) {
+        list.innerHTML = '<p style="color: #721c24;">Ошибка загрузки пользователей</p>';
+      }
+    };
+
+    document.getElementById('load-users-btn').addEventListener('click', loadUsers);
+    loadUsers();
+  </script>
+</body>
+</html>

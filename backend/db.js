@@ -45,6 +45,26 @@ const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_material ON projects(material);
       CREATE INDEX IF NOT EXISTS idx_area ON projects(area);
     `);
+
+    // Таблица пользователей
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        telegram_id BIGINT UNIQUE NOT NULL,
+        username VARCHAR(255),
+        first_name VARCHAR(255),
+        last_name VARCHAR(255),
+        first_visit TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_visit TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        visit_count INTEGER DEFAULT 1,
+        message_count INTEGER DEFAULT 0
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_telegram_id ON users(telegram_id);
+      CREATE INDEX IF NOT EXISTS idx_username ON users(username);
+    `);
     
     console.log('Database initialized successfully');
   } catch (error) {

@@ -6,9 +6,12 @@ const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
 
 /**
- * Парсит страницу проекта с проверкой подрядчика
+ * Парсит страницу проекта с строим.дом.рф.
+ * @param {string|number} projectId - ID проекта на строим.дом.рф
+ * @param {{ skipContractorCheck?: boolean }} options - skipContractorCheck: true при ручном добавлении по ID (любой проект)
  */
-const parseProject = async (projectId) => {
+const parseProject = async (projectId, options = {}) => {
+  const skipContractorCheck = options.skipContractorCheck === true;
   try {
     const url = `${BASE_URL}/project/${projectId}`;
     console.log(`Parsing project: ${url}`);
@@ -22,21 +25,19 @@ const parseProject = async (projectId) => {
     });
 
     const $ = cheerio.load(response.data);
-
-    // Проверка подрядчика
-    const contractorId = $('[data-contractor-id]').attr('data-contractor-id') || 
-                         $('.contractor-id').text().trim() ||
-                         $('[data-id]').filter((i, el) => $(el).text().includes('9465')).attr('data-id');
-    
-    // Альтернативная проверка через текст страницы
     const pageText = $('body').text();
-    const hasContractor = pageText.includes('9465') || 
-                         pageText.includes('Юрова Любовь Владимировна') ||
-                         $('a[href*="contractor/9465"]').length > 0;
 
-    if (!hasContractor && contractorId !== CONTRACTOR_ID) {
-      console.log(`Project ${projectId} is not from contractor ${CONTRACTOR_ID}`);
-      return null;
+    if (!skipContractorCheck) {
+      const contractorId = $('[data-contractor-id]').attr('data-contractor-id') || 
+                           $('.contractor-id').text().trim() ||
+                           $('[data-id]').filter((i, el) => $(el).text().includes('9465')).attr('data-id');
+      const hasContractor = pageText.includes('9465') || 
+                           pageText.includes('Юрова Любовь Владимировна') ||
+                           $('a[href*="contractor/9465"]').length > 0;
+      if (!hasContractor && contractorId !== CONTRACTOR_ID) {
+        console.log(`Project ${projectId} is not from contractor ${CONTRACTOR_ID}`);
+        return null;
+      }
     }
 
     // Извлечение данных

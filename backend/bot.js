@@ -21,18 +21,19 @@ const createBot = () => {
   });
 
   // /start
-  bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  
     const welcomeText =
       '🏠 Уютный Дом — каталог проектов\n\n' +
       'Добро пожаловать в официальное приложение компании Уютный Дом!\n\n' +
       'Что здесь можно:\n' +
-      '✨ Искать проекты домов строительно-риэлторской компании "Уютный дом" domuyut38.ru\n' +
+      '✨ Искать проекты домов из каталога domuyut38.ru\n' +
       '🔍 Фильтровать по материалу (брус, газобетон) и площади\n' +
-      '📱 Смотреть фото, планировки, и примерные цены\n' +
+      '📱 Смотреть фото, планировки и примерные цены\n' +
+      '🔗 Переходить к подробному описанию на сайте\n' +
       '💬 Связаться с менеджером одним кликом\n\n' +
-      'Нажми «Открыть каталог» — и найди свой идеальный дом, который мы Вам с радостью построим! 🏡';
+      'Нажми «Открыть каталог» — и найди свой идеальный дом! 🏡';
 
     const replyMarkup = {
       inline_keyboard: [
@@ -53,25 +54,25 @@ const createBot = () => {
     bot.sendPhoto(chatId, START_IMAGE_URL, {
       caption: welcomeText,
       reply_markup: replyMarkup,
-    });
   });
+});
 
-  bot.on('callback_query', (query) => {
+bot.on('callback_query', (query) => {
     const chatId = query.message?.chat?.id;
     const data = query.data || '';
 
     if (!chatId) return;
-
-    if (data.startsWith('project_')) {
-      const projectId = data.replace('project_', '');
+  
+  if (data.startsWith('project_')) {
+    const projectId = data.replace('project_', '');
       bot.answerCallbackQuery(query.id, { text: 'Открываю детали проекта...' });
-
-      bot.sendMessage(chatId, '🏠 Открываю проект...', {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '📋 Посмотреть проект',
+    
+    bot.sendMessage(chatId, '🏠 Открываю проект...', {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '📋 Посмотреть проект',
                 web_app: { url: `${WEB_APP_URL}?project=${projectId}` },
               },
             ],
@@ -79,16 +80,16 @@ const createBot = () => {
         },
       });
       return;
-    }
-
-    if (data.startsWith('contact_')) {
-      bot.answerCallbackQuery(query.id);
+  }
+  
+  if (data.startsWith('contact_')) {
+    bot.answerCallbackQuery(query.id);
       bot.sendMessage(
         chatId,
         '📞 Для связи с менеджером по проекту, пожалуйста, напишите нам в личные сообщения.'
-      );
-    }
-  });
+    );
+  }
+});
 
   if (isWebhookMode) {
     const webhookPath = '/api/telegram/webhook';

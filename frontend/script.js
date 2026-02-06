@@ -44,6 +44,14 @@ const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
+  // Отправляем данные пользователя на сервер для отслеживания
+  if (tg.initDataUnsafe?.user) {
+    fetch(`${API_URL}/track-user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: tg.initDataUnsafe.user }),
+    }).catch(() => {});
+  }
 }
 
 // Загрузка проектов
@@ -274,12 +282,24 @@ const showProjectDetails = async (projectId) => {
   }
 };
 
+const TELEGRAM_MANAGER = 'larissa_malio';
+const TELEGRAM_AUTO_TEXT = 'Добрый день! Пишу из приложения «Каталог уютных домов» — подскажите, пожалуйста 🏠';
+
+const getTelegramLink = (prefillText) => {
+  const base = `https://t.me/${TELEGRAM_MANAGER}`;
+  if (prefillText) {
+    return `${base}?text=${encodeURIComponent(prefillText)}`;
+  }
+  return base;
+};
+
 // Связаться с менеджером
 const contactManager = (projectId) => {
-  if (tg) {
-    tg.openTelegramLink(`https://t.me/${tg.initDataUnsafe?.user?.username || 'your_manager'}`);
+  const link = getTelegramLink(TELEGRAM_AUTO_TEXT);
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(link);
   } else {
-    alert('Для связи с менеджером откройте приложение в Telegram');
+    window.open(link, '_blank');
   }
 };
 
@@ -409,13 +429,14 @@ const showFavorites = () => {
   loadProjects(true);
 };
 
-// Открыть Telegram
+// Открыть Telegram (кнопка в шапке)
 const openTelegram = () => {
   const tg = window.Telegram?.WebApp;
-  if (tg) {
-    tg.openTelegramLink('https://t.me/larissa_malio');
+  const link = getTelegramLink(TELEGRAM_AUTO_TEXT);
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(link);
   } else {
-    window.open('https://t.me/larissa_malio', '_blank');
+    window.open(link, '_blank');
   }
 };
 

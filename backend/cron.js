@@ -141,12 +141,10 @@ const postToChannel = async (projectData) => {
   }
 };
 
-// Запуск cron каждые 2 часа
-if (require.main === module) {
-  // Запускаем сразу при старте
+// Автоперебор ID отключён: проекты добавляются по конкретным ID через админку (POST /api/parse/:id или /api/parse-batch).
+// Для ручного запуска проверки: CRON_SCAN_ENABLED=1 node cron.js
+if (require.main === module && process.env.CRON_SCAN_ENABLED === '1') {
   checkNewProjects();
-  
-  // Затем каждые 2 часа
   setInterval(checkNewProjects, 2 * 60 * 60 * 1000);
 }
 

@@ -15,6 +15,39 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(frontendDir));
 
+// POST /api/track-user - отслеживание пользователя
+app.post('/api/track-user', express.json(), async (req, res) => {
+  const user = req.body?.user;
+  if (user && user.id) {
+    await trackUser(user);
+  }
+  res.json({ success: true });
+});
+
+// Функция отслеживания пользователя
+const trackUser = async (user) => {
+  try {
+    const { id, username, first_name, last_name } = user;
+    const result = await pool.query(
+      'SELECT id, visit_count FROM users WHERE telegram_id = $1',
+      [id]
+    );
+    if (result.rows.length > 0) {
+      await pool.query(
+        'UPDATE users SET last_visit = CURRENT_TIMESTAMP, visit_count = visit_count + 1, username = COALESCE($1, username), first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name) WHERE telegram_id = $4',
+        [username || null, first_name || null, last_name || null, id]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO users (telegram_id, username, first_name, last_name, first_visit, last_visit, visit_count) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)',
+        [id, username || null, first_name || null, last_name || null]
+      );
+    }
+  } catch (error) {
+    console.error('Error tracking user:', error);
+  }
+};
+
 // Явные маршруты для HTML (на случай, если static не отдаёт на части хостингов)
 app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(frontendDir, 'admin.html'));
@@ -322,6 +355,34 @@ app.get('/api/materials', async (req, res) => {
     res.json({ success: true, data: materials });
   } catch (error) {
     console.error('Error fetching materials:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/users - список пользователей для админки
+app.get('/api/users', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT telegram_id, username, first_name, last_name, first_visit, last_visit, visit_count, message_count FROM users ORDER BY last_visit DESC'
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/users/:id/message - увеличить счётчик сообщений
+app.post('/api/users/:id/message', async (req, res) => {
+  try {
+    const telegramId = parseInt(req.params.id);
+    await pool.query(
+      'UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE telegram_id = $1',
+      [telegramId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating message count:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
