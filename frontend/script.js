@@ -339,7 +339,7 @@ const showProjectDetails = async (projectId) => {
 };
 
 const TELEGRAM_MANAGER = 'larissa_malio';
-const TELEGRAM_AUTO_TEXT = 'Добрый день! 😊 Пишу из приложения «Каталог уютных домов» — хотелось бы узнать подробнее о проектах. Подскажите, пожалуйста?';
+const TELEGRAM_AUTO_TEXT = 'Добрый день! ✨ Пишу с вашего классного приложения — хочу обсудить несколько моментов. Подскажете?';
 
 const getTelegramLink = (prefillText) => {
   const text = prefillText ? encodeURIComponent(prefillText) : '';
