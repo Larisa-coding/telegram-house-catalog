@@ -78,11 +78,17 @@ app.post('/api/telegram/webhook', (req, res) => {
 // GET /api/projects - все проекты с фильтрами
 app.get('/api/projects', async (req, res) => {
   try {
-    const { material, minArea, maxArea, search, limit = 50, offset = 0 } = req.query;
+    const { material, minArea, maxArea, search, projectId, limit = 50, offset = 0 } = req.query;
     
     let query = 'SELECT * FROM projects WHERE 1=1';
     const params = [];
     let paramCount = 0;
+
+    if (projectId) {
+      paramCount++;
+      query += ` AND project_id = $${paramCount}`;
+      params.push(parseInt(projectId));
+    }
 
     if (material) {
       paramCount++;

@@ -1,5 +1,7 @@
-// API URL - автоматически определяется из текущего домена
-const API_URL = (window.location.origin || 'http://localhost:3000').replace(/\/$/, '') + '/api';
+// API — всегда тот же хост, что и страница (важно для Telegram WebView)
+const API_URL = (typeof window !== 'undefined' && window.location.origin
+  ? window.location.origin.replace(/\/$/, '')
+  : '') + '/api';
 let currentOffset = 0;
 let isLoading = false;
 let hasMore = true;
@@ -107,7 +109,12 @@ const loadProjects = async (reset = false) => {
         offset: currentOffset,
       });
 
-      const response = await fetch(`${API_URL}/projects?${params}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const response = await fetch(`${API_URL}/projects?${params}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
       const data = await response.json();
       
       if (!data.success) {
@@ -131,15 +138,22 @@ const loadProjects = async (reset = false) => {
 
   } catch (error) {
     console.error('Error loading projects:', error);
-    document.getElementById('error').textContent = `Ошибка: ${error.message}`;
-    document.getElementById('error').style.display = 'block';
+    const errMsg = error.name === 'AbortError' ? 'Превышено время ожидания. Проверьте интернет или откройте каталог в браузере.' : error.message;
+    const errEl = document.getElementById('error');
+    if (errEl) {
+      errEl.textContent = 'Ошибка: ' + errMsg;
+      errEl.style.display = 'block';
+    }
     if (currentOffset === 0) {
-      document.getElementById('projects-grid').innerHTML = 
-        '<div style="text-align: center; padding: 40px; color: #6C757D;">Ошибка загрузки проектов</div>';
+      const grid = document.getElementById('projects-grid');
+      if (grid) {
+        grid.innerHTML = '<div style="text-align: center; padding: 40px; color: #6C757D;">Не удалось загрузить проекты. <a href="' + window.location.href + '" style="color: var(--mint-border);">Обновить</a></div>';
+      }
     }
   } finally {
     isLoading = false;
-    document.getElementById('loading').style.display = 'none';
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.style.display = 'none';
   }
 };
 
