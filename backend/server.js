@@ -16,10 +16,24 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 // Инициализация БД при старте
 initDB().catch(console.error);
 
-// Запуск Telegram Bot (только если есть токен)
+// Telegram bot init (polling локально, webhook на Railway если задан PUBLIC_BASE_URL)
+let bot = null;
 if (process.env.TELEGRAM_BOT_TOKEN) {
-  require('./bot');
+  const { createBot } = require('./bot');
+  bot = createBot();
 }
+
+// Webhook endpoint for Telegram (нужен только в webhook режиме)
+app.post('/api/telegram/webhook', (req, res) => {
+  try {
+    if (!bot) return res.sendStatus(503);
+    bot.processUpdate(req.body);
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('Telegram webhook error:', error);
+    return res.sendStatus(500);
+  }
+});
 
 // GET /api/projects - все проекты с фильтрами
 app.get('/api/projects', async (req, res) => {
