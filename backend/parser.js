@@ -152,11 +152,17 @@ const parseProject = async (projectId, options = {}) => {
         }
       });
 
-      // 5. Fallback: поиск по тексту страницы — приоритет газобетона, если оба
-      const nearMaterial = bodyText.match(/Материал\s+наружных\s+стен[^]*?([а-яёА-ЯЁ\-]+)/i);
+      // 5. Regex по тексту — только рядом с "Материал наружных стен" (не блок "Другие проекты")
+      const nearMaterial = bodyText.match(/Материал\s+наружных\s+стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|Толщина|Площадь|Спальни|м²|$)/i);
       if (nearMaterial && setFromVal(nearMaterial[1])) return;
-      if (/газобетон|газоблок|газоблочный|газобетонные/i.test(bodyText)) material = 'газобетон';
-      else if (/\bбрус\b|клееный брус|профилированный брус|брусовой|из бруса/i.test(bodyText)) material = 'брус';
+      const nearMaterial2 = bodyText.match(/Материал\s+стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|$)/i);
+      if (nearMaterial2 && setFromVal(nearMaterial2[1])) return;
+      // 6. Глобальный fallback — только первые 4000 символов; приоритет тому, что ближе к "Материал"
+      const mainContent = bodyText.slice(0, 4000);
+      const idxBrus = mainContent.search(/\bбрус\b|клееный брус|профилированный брус|пиленый брус|брусовой|из бруса/i);
+      const idxGaz = mainContent.search(/газобетон|газоблок|газоблочный|газобетонные/i);
+      if (idxBrus >= 0 && (idxGaz < 0 || idxBrus < idxGaz)) material = 'брус';
+      else if (idxGaz >= 0) material = 'газобетон';
     };
 
     extractMaterial();
@@ -221,17 +227,13 @@ const parseProject = async (projectId, options = {}) => {
     const isLogoImg = (el) => {
       if (!el) return false;
       const $el = $(el);
-      const alt = ($el.attr('alt') || '').toLowerCase();
-      const title = ($el.attr('title') || '').toLowerCase();
-      if (/уютн|каталог|логотип|logo|строительство.*будущее/.test(alt) || /уютн|каталог|логотип/.test(title)) return true;
+      const alt = ($el.attr('alt') || '').toLowerCase().trim();
+      const title = ($el.attr('title') || '').toLowerCase().trim();
+      // Только явный логотип в alt/title — не "уютный" (названия проектов: Уютный Х-38)
+      if (/^(уютный\s+дом|каталог|логотип)\s*$|логотип|строительство.*будущее/.test(alt)) return true;
+      if (/^(уютный\s+дом|каталог|логотип)\s*$/.test(title)) return true;
       const parent = $el.closest('[class*="logo"], [class*="brand"]');
-      if (parent.length && parent.text().length < 150) return true;
-      // Контейнер с текстом "УЮТНЫЙ ДОМ" — это логотип
-      const $par = $el.closest('div, section');
-      for (let i = 0; i < $par.length; i++) {
-        const t = $par.eq(i).text().trim();
-        if (t.includes('УЮТНЫЙ ДОМ') && t.length < 250) return true;
-      }
+      if (parent.length && parent.text().length < 80) return true;
       return false;
     };
 

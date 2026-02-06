@@ -268,7 +268,7 @@ const renderProjects = (projects) => {
 const isLogoOrIcon = (url) => {
   if (!url || typeof url !== 'string') return true;
   const lower = url.toLowerCase();
-  return /logo|favicon|icon\.(png|svg|gif)|emblem|sprite|banner|watermark|nophoto|уютн|каталог/.test(lower) ||
+  return /logo|favicon|icon\.(png|svg|gif)|emblem|sprite|banner|watermark|nophoto/.test(lower) ||
     /\/icons?\/|\/logo\/|favicon\.|logo\.(png|svg|jpg|jpeg|gif)/.test(lower);
 };
 
