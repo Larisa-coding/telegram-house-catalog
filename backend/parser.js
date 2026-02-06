@@ -156,7 +156,7 @@ const parseProject = async (projectId, options = {}) => {
     const isLogoOrIcon = (url) => {
       if (!url) return true;
       const lower = url.toLowerCase();
-      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|уютн|contractor|catalogue|katalog|placeholder|default|noimage|watermark|каталог/.test(lower) ||
+      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|уютн|contractor|catalogue|katalog|placeholder|default|noimage|watermark|каталог|nophoto|no-photo/.test(lower) ||
         /\/icons?\/|\/logo\/|\/contractor\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
     };
 
@@ -166,19 +166,27 @@ const parseProject = async (projectId, options = {}) => {
       return /plan|планир|этаж|floor|layout|чертеж|схема/i.test(lower);
     };
 
+    const isInLogoArea = (el) => {
+      if (!el) return false;
+      const $el = $(el);
+      const $parent = $el.closest('[class*="header"], [class*="nav"], [class*="logo"], [class*="brand"], [id*="header"], [id*="logo"], [class*="contractor"]');
+      if ($parent.length) return true;
+      const $cont = $el.closest('div, section');
+      const siblingImgs = $cont.find('img').length;
+      if (siblingImgs === 1 && $cont.text().length < 300) return true;
+      const parentText = $cont.text().toLowerCase();
+      if (parentText.length < 200 && /уютный дом|каталог проектов/.test(parentText)) return true;
+      const alt = ($el.attr('alt') || '').toLowerCase();
+      const title = ($el.attr('title') || '').toLowerCase();
+      return /уютн|каталог|логотип|logo/.test(alt) || /уютн|каталог|логотип|logo/.test(title);
+    };
+
     const seen = new Set();
     const housePhotos = [];
     const floorPlans = [];
 
-    const isBrandingImg = (el, src) => {
-      if (isLogoOrIcon(src)) return true;
-      const alt = ((el && $(el).attr('alt')) || '').toLowerCase();
-      const title = ((el && $(el).attr('title')) || '').toLowerCase();
-      return /уютн|каталог|логотип|logo|бренд/.test(alt) || /уютн|каталог|логотип|logo/.test(title);
-    };
-
-    const addTo = (arr, src, max = 15, el) => {
-      if (!src || seen.has(src) || isLogoOrIcon(src) || (el && isBrandingImg(el, src)) || arr.length >= max) return;
+    const addTo = (arr, src, max, el) => {
+      if (!src || seen.has(src) || isLogoOrIcon(src) || (el && isInLogoArea(el)) || arr.length >= max) return;
       if (!src.startsWith('http')) {
         src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
       }
@@ -186,43 +194,77 @@ const parseProject = async (projectId, options = {}) => {
       arr.push(src);
     };
 
-    // 1. Фото домов (рендеры, галерея) — БЕЗ планов этажей и логотипов
-    $('[class*="gallery"], [class*="slider"], [class*="carousel"], [class*="project"] img').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
-      if (src && !isFloorPlan(src)) addTo(housePhotos, src, 12, el);
-    });
-
-    $('img').each((i, el) => {
-      const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
-      if (src && (src.includes('project') || src.includes('house') || src.includes('dom') || src.includes('/upload/')) && !isFloorPlan(src)) {
-        addTo(housePhotos, src, 12, el);
+    // 1. ВСЕ ФОТО — ищем секции "все фото", "галерея", "фотографии" и берём ВСЕ изображения (рендеры домов)
+    const galleryKeywords = ['все фото', 'галерея', 'фотографии', 'фото проекта', 'рендеры'];
+    const $mainContent = $('main, [class*="content"], [class*="project-detail"], [class*="project-info"]').first();
+    const $searchRoot = $mainContent.length ? $mainContent : $('body');
+    let $galleryRoot = null;
+    let maxImgs = 0;
+    $searchRoot.find('div, section, [class*="gallery"], [class*="photo"], [class*="slider"], [class*="carousel"]').each((i, el) => {
+      const $el = $(el);
+      const text = $el.text().toLowerCase();
+      const hasKeyword = galleryKeywords.some((k) => text.includes(k));
+      const imgCount = $el.find('img').length;
+      if (hasKeyword && imgCount >= 2 && imgCount > maxImgs && !$el.closest('[class*="header"], [class*="nav"]').length) {
+        maxImgs = imgCount;
+        $galleryRoot = $el;
       }
     });
-
-    while (housePhotos.length < 6) {
-      let added = false;
-      $('img').each((i, el) => {
-        const src = $(el).attr('src') || $(el).attr('data-src');
-        if (src && src.includes('http') && !isLogoOrIcon(src) && !isFloorPlan(src) && !isBrandingImg(el, src) && !seen.has(src)) {
-          addTo(housePhotos, src, 12, el);
-          added = true;
-          return false;
-        }
+    if ($galleryRoot && $galleryRoot.length) {
+      $galleryRoot.find('img').each((i, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
+        if (src && !isFloorPlan(src)) addTo(housePhotos, src, 35, el);
       });
-      if (!added) break;
     }
 
-    // 2. Поэтажные планы (планировки) — отдельно, после фото домов
-    $('img[src*="plan"], img[src*="планир"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
+    // 2. Fallback: галерея, слайдер, карусель (исключаем логотип)
+    if (housePhotos.length < 3) {
+      $('[class*="gallery"], [class*="slider"], [class*="carousel"], [class*="project-gallery"] img').each((i, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
+        if (src && !isFloorPlan(src)) addTo(housePhotos, src, 35, el);
+      });
+    }
+
+    // 3. Остальные фото дома (/upload/, project, house)
+    if (housePhotos.length < 6) {
+      $('img').each((i, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
+        if (src && (src.includes('/upload/') || src.includes('project') || src.includes('house') || src.includes('/dom/')) && !isFloorPlan(src)) {
+          addTo(housePhotos, src, 35, el);
+        }
+      });
+    }
+
+    // 4. ПОЭТАЖНЫЙ ПЛАН — ищем секцию и берём ВСЕ планировки
+    const planKeywords = ['поэтажный план', 'планировка', 'план этажа', 'планы этажей'];
+    let $planRoot = null;
+    $('div, section, [class*="plan"], [class*="floor"], [class*="layout"], [class*="планир"]').each((i, el) => {
+      const text = $(el).text().toLowerCase();
+      const hasPlan = planKeywords.some((k) => text.includes(k));
+      const imgCount = $(el).find('img').length;
+      if (hasPlan && imgCount >= 1 && !$planRoot) {
+        $planRoot = $(el).first();
+        return false;
+      }
+    });
+    if ($planRoot && $planRoot.length) {
+      $planRoot.find('img').each((i, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
+        if (src) addTo(floorPlans, src, 25, el);
+      });
+    }
+
+    // 5. Дополнительно: img с plan/планир/этаж в src или alt
+    $('img[src*="plan"], img[src*="планир"], img[src*="этаж"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src');
-      addTo(floorPlans, src, 10, el);
+      if (src) addTo(floorPlans, src, 25, el);
     });
     $('[class*="plan"], [class*="floor"], [class*="layout"], [class*="планиров"] img').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src');
-      if (src && isFloorPlan(src)) addTo(floorPlans, src, 10, el);
+      if (src && isFloorPlan(src)) addTo(floorPlans, src, 25, el);
     });
 
-    const images = [...housePhotos, ...floorPlans].slice(0, 25);
+    const images = [...housePhotos, ...floorPlans].slice(0, 50);
 
     const projectData = {
       project_id: parseInt(projectId),

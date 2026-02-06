@@ -268,8 +268,8 @@ const renderProjects = (projects) => {
 const isLogoOrIcon = (url) => {
   if (!url || typeof url !== 'string') return true;
   const lower = url.toLowerCase();
-  return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|watermark|уютн/.test(lower) ||
-    /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
+  return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|watermark|уютн|contractor|catalogue|katalog|placeholder|default|noimage|каталог|nophoto|no-photo/.test(lower) ||
+    /\/icons?\/|\/logo\/|\/contractor\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
 };
 
 const isFloorPlan = (url) => {
@@ -356,8 +356,8 @@ const showProjectDetails = async (projectId) => {
       : 'Цена по запросу*';
 
     const allImages = (project.images || []).filter((src) => src && !isLogoOrIcon(src));
-    const mainImage = allImages[0] || (project.images && project.images[0]);
-    const otherImages = allImages.slice(1, 15);
+    const mainImage = getFirstHouseImage(allImages) || allImages[0] || (project.images && project.images[0]);
+    const otherImages = allImages.filter((src) => src !== mainImage).slice(0, 20);
     const modalImagesHtml = mainImage ? `
       <img src="${mainImage}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
       ${otherImages.length > 0 ? `
