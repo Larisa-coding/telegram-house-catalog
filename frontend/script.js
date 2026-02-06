@@ -1,7 +1,12 @@
-// API — всегда тот же хост, что и страница (важно для Telegram WebView)
-const API_URL = (typeof window !== 'undefined' && window.location.origin
-  ? window.location.origin.replace(/\/$/, '')
-  : '') + '/api';
+// API — тот же хост, что и страница (важно для Telegram WebView)
+const getApiBase = () => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (!origin || origin === 'null' || origin.startsWith('file')) {
+    return ''; // относительный путь /api при открытии через сервер
+  }
+  return origin.replace(/\/$/, '');
+};
+const API_URL = getApiBase() + '/api';
 let currentOffset = 0;
 let isLoading = false;
 let hasMore = true;
@@ -103,10 +108,10 @@ const loadProjects = async (reset = false) => {
     } else {
       // Обычная загрузка с фильтрами
       const filters = getFilters();
-      const params = new URLSearchParams({
-        ...filters,
-        limit: 9,
-        offset: currentOffset,
+      const queryParams = { ...filters, limit: 9, offset: currentOffset };
+      const params = new URLSearchParams();
+      Object.entries(queryParams).forEach(([k, v]) => {
+        if (v != null && v !== '') params.set(k, String(v));
       });
 
       const controller = new AbortController();
@@ -116,6 +121,10 @@ const loadProjects = async (reset = false) => {
       });
       clearTimeout(timeoutId);
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || `Ошибка ${response.status}`);
+      }
       
       if (!data.success) {
         throw new Error(data.error || 'Ошибка загрузки');
@@ -138,7 +147,12 @@ const loadProjects = async (reset = false) => {
 
   } catch (error) {
     console.error('Error loading projects:', error);
-    const errMsg = error.name === 'AbortError' ? 'Превышено время ожидания. Проверьте интернет или откройте каталог в браузере.' : error.message;
+    let errMsg = error.message;
+    if (error.name === 'AbortError') {
+      errMsg = 'Превышено время ожидания. Проверьте интернет.';
+    } else if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+      errMsg = 'Нет связи с сервером. Убедитесь, что приложение открыто с правильного адреса.';
+    }
     const errEl = document.getElementById('error');
     if (errEl) {
       errEl.textContent = 'Ошибка: ' + errMsg;
@@ -309,12 +323,7 @@ const getTelegramLink = (prefillText) => {
 
 // Связаться с менеджером
 const contactManager = (projectId) => {
-  const link = getTelegramLink(TELEGRAM_AUTO_TEXT);
-  if (tg?.openTelegramLink) {
-    tg.openTelegramLink(link);
-  } else {
-    window.open(link, '_blank');
-  }
+  openTelegramLink(TELEGRAM_AUTO_TEXT);
 };
 
 // Загрузка материалов для фильтра
@@ -412,12 +421,23 @@ const debounce = (func, wait) => {
 };
 
 // Сворачивание/разворачивание фильтров
-document.getElementById('filters-toggle').addEventListener('click', () => {
+const handleFiltersToggle = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
   const toggle = document.getElementById('filters-toggle');
   const filters = document.getElementById('filters');
+  if (!toggle || !filters) return;
   toggle.classList.toggle('collapsed');
   filters.classList.toggle('expanded');
-});
+  const isExpanded = filters.classList.contains('expanded');
+  toggle.setAttribute('aria-expanded', isExpanded);
+};
+
+const filtersToggleEl = document.getElementById('filters-toggle');
+if (filtersToggleEl) {
+  filtersToggleEl.setAttribute('aria-expanded', 'false');
+  filtersToggleEl.addEventListener('click', handleFiltersToggle);
+}
 
 // Переключение избранного
 const toggleProjectFavorite = (projectId, button) => {
@@ -443,29 +463,49 @@ const showFavorites = () => {
   loadProjects(true);
 };
 
-// Открыть Telegram (кнопка в шапке)
-const openTelegram = () => {
+// Открыть ссылку на Telegram (универсально: WebApp и браузер)
+const openTelegramLink = (prefillText) => {
+  const link = getTelegramLink(prefillText || TELEGRAM_AUTO_TEXT);
   const tg = window.Telegram?.WebApp;
-  const link = getTelegramLink(TELEGRAM_AUTO_TEXT);
   if (tg?.openTelegramLink) {
-    tg.openTelegramLink(link);
+    try {
+      tg.openTelegramLink(link);
+    } catch (e) {
+      window.location.href = link;
+    }
   } else {
-    window.open(link, '_blank');
+    window.open(link, '_blank', 'noopener');
   }
 };
 
+const openTelegram = () => openTelegramLink(TELEGRAM_AUTO_TEXT);
+
 // События для header кнопок
 document.getElementById('favorites-btn').addEventListener('click', showFavorites);
-document.getElementById('telegram-btn').addEventListener('click', openTelegram);
 
-// Инициализация
-updateFavoritesCount();
-loadMaterials();
-loadProjects(true);
+const telegramBtn = document.getElementById('telegram-btn');
+if (telegramBtn) {
+  telegramBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    openTelegram();
+  });
+}
 
-// Проверка URL параметров для открытия конкретного проекта
-const urlParams = new URLSearchParams(window.location.search);
-const projectId = urlParams.get('project');
-if (projectId) {
-  showProjectDetails(projectId);
+// Инициализация — после готовности DOM
+const init = () => {
+  updateFavoritesCount();
+  loadMaterials();
+  loadProjects(true);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const projectId = urlParams.get('project');
+  if (projectId) {
+    showProjectDetails(projectId);
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
 }
