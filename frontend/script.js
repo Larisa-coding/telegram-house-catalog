@@ -292,8 +292,9 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const imageUrl = firstImg || 'https://via.placeholder.com/400x300?text=Дом';
-  const proxyUrl = firstImg && firstImg.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(firstImg)}` : '';
+  const imageUrl = firstImg && firstImg.startsWith('http')
+    ? `${API_URL}/proxy-image?url=${encodeURIComponent(firstImg)}`
+    : 'https://via.placeholder.com/400x300?text=Дом';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -309,8 +310,8 @@ const createProjectCard = (project) => {
   
   card.innerHTML = `
     <div class="project-image-container">
-      <img src="${imageUrl}" data-proxy="${proxyUrl || ''}" alt="${project.name}" class="project-image" 
-           onerror="if(this.dataset.proxy){this.src=this.dataset.proxy;this.dataset.proxy=''}else{this.src='https://via.placeholder.com/400x300?text=Нет+фото'}">
+      <img src="${imageUrl}" alt="${project.name}" class="project-image" 
+           onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
       <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${projId}, this)" title="Добавить в избранное">
         ${favoriteIcon}
       </button>
@@ -364,15 +365,15 @@ const showProjectDetails = async (projectId) => {
     const mainImage = getFirstHouseImage(houseImagesOnly) || getFirstHouseImage(allImages) || allImages[0];
     const otherImages = houseImagesOnly.filter((src) => src !== mainImage);
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
-    const proxy = (url) => url && url.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(url)}` : '';
-    const imgTag = (url, cls = '') => {
+    const proxyUrl = (url) => url && url.startsWith('http') ? `${API_URL}/proxy-image?url=${encodeURIComponent(url)}` : '';
+    const imgTag = (url, cls) => {
       if (!url || !url.startsWith('http')) return '';
-      const prox = proxy(url);
-      return `<img src="${url}" data-proxy="${prox}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="if(this.dataset.proxy){this.src=this.dataset.proxy;this.dataset.proxy=''}">`;
+      const src = proxyUrl(url);
+      return src ? `<img src="${src}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="this.style.display='none'">` : '';
     };
     const modalImagesHtml = mainImage ? `
       ${imgTag(mainImage, 'modal-image')}
-      ${otherImages.length > 0 ? `<div class="modal-images">${otherImages.map((img) => imgTag(img)).join('')}</div>` : ''}
+      ${otherImages.length > 0 ? `<div class="modal-images">${otherImages.map((img) => imgTag(img, '')).join('')}</div>` : ''}
     ` : '';
 
     const floorPlansHtml = floorPlans.length > 0 ? `

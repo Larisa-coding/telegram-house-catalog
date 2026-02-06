@@ -29,8 +29,12 @@ app.get('/api/proxy-image', async (req, res) => {
     }
     const resp = await axios.get(url, {
       responseType: 'stream',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; UyutnyDom/1)' },
-      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Referer': 'https://строим.дом.рф/',
+      },
+      timeout: 20000,
     });
     const ct = resp.headers['content-type'] || 'image/jpeg';
     res.set('Cache-Control', 'public, max-age=86400');
