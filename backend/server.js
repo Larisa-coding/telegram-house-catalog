@@ -95,8 +95,8 @@ app.get('/api/projects', async (req, res) => {
 
     if (material) {
       paramCount++;
-      query += ` AND material = $${paramCount}`;
-      params.push(material);
+      query += ` AND material ILIKE $${paramCount}`;
+      params.push(`%${material}%`);
     }
 
     if (minArea) {

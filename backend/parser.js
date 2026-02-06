@@ -6,6 +6,78 @@ const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
 
 /**
+ * Парсит материал наружных стен строго из HTML страницы.
+ * Ищет строку/блок с "Материал стен", "Материал наружных стен" и берёт значение из соседней ячейки.
+ * @param {string} html - HTML страницы проекта
+ * @returns {string|null} - точное значение материала или null, если не найдено
+ */
+const parseMaterialFromPage = (html) => {
+  const $ = cheerio.load(html);
+  const labelPattern = /Материал\s+(наружных\s+)?стен/i;
+
+  const empty = (v) => !v || v === '—' || v === '-';
+
+  // 1. Content_general_item — плашка "Материал стен" + значение во втором p
+  const contentItem = $('[class*="Content_general_item"], [class*="Content_general__item"]').filter((i, el) => {
+    const ps = $(el).find('p');
+    if (ps.length < 2) return false;
+    return labelPattern.test(ps.eq(0).text().trim());
+  });
+  if (contentItem.length) {
+    const val = contentItem.first().find('p').eq(1).text().trim();
+    if (!empty(val)) return val;
+  }
+
+  // 2. Table_row — "Материал наружных стен" → вторая колонка (Table_col)
+  let found = null;
+  $('[class*="Table_row"]').each((i, el) => {
+    if (found) return;
+    const txt = $(el).text();
+    if (!labelPattern.test(txt)) return;
+    const cols = $(el).find('[class*="Table_col"]');
+    const val = cols.eq(1).find('[class*="ValueWithHint_hint_content"]').text().trim() ||
+      cols.eq(1).find('p').last().text().trim() ||
+      cols.eq(1).text().trim();
+    if (!empty(val)) found = val;
+  });
+  if (found) return found;
+
+  // 3. dt/dd — <dt>Материал наружных стен</dt><dd>...</dd>
+  $('dt').each((i, el) => {
+    if (found) return;
+    if (!labelPattern.test($(el).text())) return;
+    const val = $(el).next('dd').text().trim();
+    if (!empty(val)) found = val;
+  });
+  if (found) return found;
+
+  // 4. tr/td — таблица, td с "Материал" → соседняя ячейка
+  $('tr').each((i, el) => {
+    if (found) return;
+    const cells = $(el).find('td, th');
+    for (let j = 0; j < cells.length - 1; j++) {
+      if (labelPattern.test($(cells[j]).text().trim()) && $(cells[j]).text().trim().length < 80) {
+        const val = $(cells[j + 1]).text().trim();
+        if (!empty(val)) { found = val; return; }
+      }
+    }
+  });
+  if (found) return found;
+
+  // 5. p + next p — <p>Материал стен</p><p>Газобетон</p>
+  $('p').each((i, el) => {
+    if (found) return;
+    const label = $(el).text().trim();
+    if (labelPattern.test(label) && label.length < 40) {
+      const val = $(el).next('p').text().trim();
+      if (!empty(val)) found = val;
+    }
+  });
+
+  return found || null;
+};
+
+/**
  * Парсит страницу проекта с строим.дом.рф.
  * @param {string|number} projectId - ID проекта на строим.дом.рф
  * @param {{ skipContractorCheck?: boolean }} options - skipContractorCheck: true при ручном добавлении по ID (любой проект)
@@ -45,9 +117,8 @@ const parseProject = async (projectId, options = {}) => {
                  $('.project-title').text().trim() ||
                  $('[class*="title"]').first().text().trim();
 
-    // Основные плашки — Content_general_item (площадь, материал, спальни, ванные)
+    // Основные плашки — Content_general_item (площадь, спальни, ванные). Материал — только через parseMaterialFromPage.
     let area = null;
-    let material = null;
     let bedrooms = null;
     $('[class*="Content_general_item"], [class*="Content_general__item"]').each((i, el) => {
       const $item = $(el);
@@ -58,15 +129,13 @@ const parseProject = async (projectId, options = {}) => {
       if (label === 'Площадь дома' && value) {
         const m = value.match(/(\d+[,.]?\d*)/);
         if (m) area = parseFloat(m[1].replace(',', '.'));
-      } else if (label === 'Материал стен' && value && value !== '—' && value !== '-') {
-        const v = value.toLowerCase();
-        if (/газобетон|газоблок/.test(v)) material = 'газобетон';
-        else if (/\bбрус\b|пиленый|клееный|профилированный/.test(v)) material = 'брус';
       } else if (label === 'Спальни' && value) {
         const n = parseInt(value, 10);
         if (!isNaN(n)) bedrooms = n;
       }
     });
+
+    const material = parseMaterialFromPage(response.data);
 
     // Цена (ищем "от X ₽")
     let price = null;
@@ -80,92 +149,7 @@ const parseProject = async (projectId, options = {}) => {
       }
     });
 
-    // Материал — fallback если не найден в Content_general
     const bodyText = $('body').text();
-
-    const extractMaterial = () => {
-      if (material) return;
-      const setFromVal = (val) => {
-        const v = String(val).toLowerCase().trim();
-        if (!v || v === '—' || v === '-') return false;
-        if (/газобетон|газоблок|газоблочный|газобетонные/.test(v)) { material = 'газобетон'; return true; }
-        if (/\bбрус\b|клееный брус|профилированный брус|пиленый брус|брусовой|из бруса/.test(v)) { material = 'брус'; return true; }
-        return false;
-      };
-
-      // 0. Конструктивные решения — Table_row: "Материал наружных стен" → вторая колонка (ValueWithHint_hint_content)
-      $('[class*="Table_row"]').each((i, el) => {
-        const txt = $(el).text();
-        if (/Материал\s+наружных\s+стен/i.test(txt)) {
-          const cols = $(el).find('[class*="Table_col"]');
-          const secondCol = cols.eq(1);
-          const val = secondCol.find('[class*="ValueWithHint_hint_content"]').text().trim() ||
-            secondCol.find('p').last().text().trim() ||
-            secondCol.text().trim();
-          if (setFromVal(val)) return false;
-        }
-      });
-      if (material) return;
-
-      // 1. Строим.дом.рф: <p>Материал стен</p><p>Газобетон</p>
-      $('p').each((i, el) => {
-        if (/Материал\s+(наружных\s+)?стен/i.test($(el).text().trim()) && $(el).text().trim().length < 30) {
-          const next = $(el).next('p');
-          if (next.length && setFromVal(next.text())) return false;
-        }
-      });
-      if (material) return;
-
-      // 1. dt/dd: <dt>Материал наружных стен</dt><dd>Газобетон</dd>
-      $('dt').each((i, el) => {
-        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test($(el).text())) {
-          const next = $(el).next('dd');
-          if (next.length && setFromVal(next.text().trim())) return false;
-        }
-      });
-      if (material) return;
-
-      // 2. Таблица: td с "Материал" — соседняя ячейка в той же строке
-      $('td, th').each((i, el) => {
-        const $el = $(el);
-        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test($el.text().trim()) && $el.text().trim().length < 50) {
-          const $row = $el.closest('tr');
-          const idx = $row.children().index($el);
-          const $next = $row.children().eq(idx + 1);
-          if ($next.length && setFromVal($next.text().trim())) return false;
-        }
-      });
-      if (material) return;
-
-      // 3. Контекст "Материал наружных стен" или "Материал стен"
-      const near = bodyText.match(/Материал\s+(наружных\s+)?стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|$|Площадь|Спальни|м²)/i);
-      if (near && setFromVal(near[2] || near[1])) return;
-
-      // 4. [class*="value"] рядом с "Материал"
-      $('[class*="param"], [class*="characteristic"], [class*="spec"]').each((i, el) => {
-        const txt = $(el).text();
-        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test(txt) && txt.length < 200) {
-          const $val = $(el).find('[class*="value"]');
-          if ($val.length && setFromVal($val.first().text())) return false;
-          const val = txt.replace(/Материал\s+(наружных\s+)?стен\s*[:\s]*/gi, '').trim().split(/\s/)[0];
-          if (val && setFromVal(val)) return false;
-        }
-      });
-
-      // 5. Regex по тексту — только рядом с "Материал наружных стен" (не блок "Другие проекты")
-      const nearMaterial = bodyText.match(/Материал\s+наружных\s+стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|Толщина|Площадь|Спальни|м²|$)/i);
-      if (nearMaterial && setFromVal(nearMaterial[1])) return;
-      const nearMaterial2 = bodyText.match(/Материал\s+стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|$)/i);
-      if (nearMaterial2 && setFromVal(nearMaterial2[1])) return;
-      // 6. Глобальный fallback — только первые 4000 символов; приоритет тому, что ближе к "Материал"
-      const mainContent = bodyText.slice(0, 4000);
-      const idxBrus = mainContent.search(/\bбрус\b|клееный брус|профилированный брус|пиленый брус|брусовой|из бруса/i);
-      const idxGaz = mainContent.search(/газобетон|газоблок|газоблочный|газобетонные/i);
-      if (idxBrus >= 0 && (idxGaz < 0 || idxBrus < idxGaz)) material = 'брус';
-      else if (idxGaz >= 0) material = 'газобетон';
-    };
-
-    extractMaterial();
 
     // Спальни — fallback если не найдены в Content_general
     if (bedrooms == null) {
@@ -453,4 +437,4 @@ const generateDescription = (project) => {
   return `${badgesStr}\n\n${poetic}`;
 };
 
-module.exports = { parseProject, generateDescription };
+module.exports = { parseProject, generateDescription, parseMaterialFromPage };
