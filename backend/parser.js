@@ -30,14 +30,16 @@ const parseMaterial = (html) => {
     if (val) return val;
   }
 
-  // 3. Table_row — "Материал наружных стен" → вторая колонка
+  // 3. Table_row — "Материал наружных стен" → вторая колонка (ValueWithHint, p[data-testid], любой текст)
   $('[class*="Table_row"]').each((i, el) => {
     if (found) return;
     if (!labelPattern.test($(el).text())) return;
-    const cols = $(el).find('[class*="Table_col"]');
-    const val = cols.eq(1).find('[class*="ValueWithHint_hint_content"]').text().trim() ||
-      cols.eq(1).find('p').last().text().trim() ||
-      cols.eq(1).text().trim();
+    const col2 = $(el).find('[class*="Table_col"]').eq(1);
+    const val = col2.find('[class*="ValueWithHint"]').first().text().trim() ||
+      col2.find('p[data-testid="typography"]').text().trim() ||
+      col2.find('p').last().text().trim() ||
+      col2.find('span').last().text().trim() ||
+      col2.text().trim();
     const v = takeVal(val);
     if (v) found = v;
   });
@@ -80,8 +82,9 @@ const parseMaterial = (html) => {
       if (v) found = v;
     }
   });
+  if (found) return found;
 
-  return found || null;
+  return null;
 };
 
 /**
@@ -126,9 +129,8 @@ const parseFloorPlans = (html) => {
   // 2. PlanList_plan, swiper-slide — строим.дом.рф
   $('[class*="PlanList_plan"], [class*="PlanList_plar"], [class*="swiper-slide"] img').each((i, el) => {
     const alt = ($(el).attr('alt') || '').toLowerCase();
-    if (!/план|этаж/.test(alt)) return;
     const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('srcset')?.split(/\s+/)[0];
-    if (src) addPlan(src);
+    if (src && (/план|этаж/.test(alt) || src.includes('resizer'))) addPlan(src);
   });
 
   // 3. img alt="План 1 этажа", "План 2 этажа" и т.д.
