@@ -235,15 +235,39 @@ app.post('/api/cron/check', async (req, res) => {
 // POST /api/parse-batch - массовый парсинг проектов
 app.post('/api/parse-batch', async (req, res) => {
   try {
-    const { startId = 77000, endId = 78000, contractorId = 9465 } = req.body;
+    const { startId, endId, step = 1 } = req.body;
     const { parseProject } = require('./parser');
     
-    console.log(`Starting batch parsing from ${startId} to ${endId}`);
+    // Если не указаны startId и endId, используем умный поиск
+    let actualStartId = startId;
+    let actualEndId = endId;
+    
+    if (!startId || !endId) {
+      // Получаем минимальный и максимальный ID из БД
+      const minMax = await pool.query(
+        'SELECT MIN(project_id) as min_id, MAX(project_id) as max_id FROM projects'
+      );
+      const minId = minMax.rows[0]?.min_id || 45;
+      const maxId = minMax.rows[0]?.max_id || 45;
+      
+      // Если БД пустая, начинаем с 45 и проверяем широкий диапазон
+      if (minId === 45 && maxId === 45) {
+        actualStartId = 45;
+        actualEndId = 1000; // Проверяем первые 1000 проектов
+      } else {
+        // Проверяем диапазон после последнего найденного
+        actualStartId = maxId + 1;
+        actualEndId = maxId + 500;
+      }
+    }
+    
+    console.log(`Starting batch parsing from ${actualStartId} to ${actualEndId}`);
     let parsed = 0;
     let skipped = 0;
     let errors = 0;
+    let notFound = 0;
     
-    for (let projectId = startId; projectId <= endId; projectId++) {
+    for (let projectId = actualStartId; projectId <= actualEndId; projectId += step) {
       try {
         // Проверяем, есть ли уже проект
         const existing = await pool.query(
@@ -293,19 +317,30 @@ app.post('/api/parse-batch', async (req, res) => {
         parsed++;
         
         // Небольшая задержка между запросами
-        if (projectId % 10 === 0) {
+        if (parsed % 10 === 0) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        console.error(`Error parsing project ${projectId}:`, error.message);
-        errors++;
+        if (error.message && error.message.includes('404') || error.message.includes('not found')) {
+          notFound++;
+        } else {
+          console.error(`Error parsing project ${projectId}:`, error.message);
+          errors++;
+        }
       }
     }
     
     res.json({
       success: true,
       message: `Batch parsing completed`,
-      stats: { parsed, skipped, errors, total: endId - startId + 1 }
+      stats: { 
+        parsed, 
+        skipped, 
+        errors, 
+        notFound,
+        total: Math.floor((actualEndId - actualStartId) / step) + 1,
+        range: `${actualStartId} - ${actualEndId}`
+      }
     });
   } catch (error) {
     console.error('Error in batch parsing:', error);

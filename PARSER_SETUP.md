@@ -9,10 +9,19 @@
 **Важно**: Это POST endpoint, не GET! Используй один из способов ниже:
 
 #### Вариант A: Через curl (рекомендуется)
+
+**Автоматический режим (начинает с 45):**
 ```bash
 curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
   -H "Content-Type: application/json" \
-  -d '{"startId": 77000, "endId": 77200}'
+  -d '{}'
+```
+
+**С указанием диапазона:**
+```bash
+curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
+  -H "Content-Type: application/json" \
+  -d '{"startId": 45, "endId": 500}'
 ```
 
 #### Вариант B: Через Postman или другой API клиент
@@ -20,18 +29,32 @@ curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-
 - URL: `https://telegram-house-catalog-production.up.railway.app/api/parse-batch`
 - Headers: `Content-Type: application/json`
 - Body (JSON):
+
+**Вариант 1: Указать диапазон вручную**
 ```json
 {
-  "startId": 77000,
-  "endId": 78000
+  "startId": 45,
+  "endId": 500
 }
 ```
 
+**Вариант 2: Автоматический поиск (без указания диапазона)**
+```json
+{}
+```
+Парсер автоматически начнет с ID 45 и проверит следующие 1000 проектов, или продолжит с последнего найденного ID.
+
 Или через curl:
 ```bash
+# С указанием диапазона
 curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
   -H "Content-Type: application/json" \
-  -d '{"startId": 77000, "endId": 78000}'
+  -d '{"startId": 45, "endId": 500}'
+
+# Автоматический поиск (без диапазона)
+curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ### Способ 2: Через Railway CLI или терминал
@@ -40,16 +63,29 @@ curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-
 
 ## Параметры
 
-- `startId` - начальный ID проекта (по умолчанию 77000)
-- `endId` - конечный ID проекта (по умолчанию 78000)
-- `contractorId` - ID подрядчика (по умолчанию 9465, проверяется автоматически)
+- `startId` - начальный ID проекта (опционально, если не указан - начинается с 45 или продолжает с последнего найденного)
+- `endId` - конечный ID проекта (опционально, если не указан - проверяет следующие 1000 проектов)
+- `step` - шаг проверки (по умолчанию 1, можно указать для пропуска ID)
 
 ## Рекомендации
 
-1. **Начни с небольшого диапазона** (например, 77000-77100) для проверки
-2. **Увеличивай постепенно** (100-200 проектов за раз)
+1. **Первый запуск**: Используй автоматический режим без параметров - парсер начнет с ID 45
+   ```bash
+   curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
+     -H "Content-Type: application/json" \
+     -d '{}'
+   ```
+
+2. **Для проверки конкретного диапазона**: Укажи startId и endId
+   ```bash
+   curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
+     -H "Content-Type: application/json" \
+     -d '{"startId": 45, "endId": 200}'
+   ```
+
 3. **Проверяй логи** Railway на ошибки
 4. **После парсинга** проверь каталог в приложении
+5. **ID проектов могут быть разными** - парсер автоматически пропустит несуществующие
 
 ## Автоматическая проверка новых проектов
 

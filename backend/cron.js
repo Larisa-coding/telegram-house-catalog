@@ -17,12 +17,12 @@ const checkNewProjects = async () => {
     const lastProject = await pool.query(
       'SELECT MAX(project_id) as max_id FROM projects'
     );
-    const lastId = lastProject.rows[0]?.max_id || 77000; // Начинаем с примерного ID
+    const lastId = lastProject.rows[0]?.max_id || 45; // Начинаем с минимального ID
     
-    // Проверяем диапазон проектов (например, последние 100)
-    const checkRange = 100;
-    const startId = lastId;
-    const endId = lastId + checkRange;
+    // Проверяем диапазон проектов (например, последние 200)
+    const checkRange = 200;
+    const startId = lastId + 1; // Начинаем со следующего после последнего найденного
+    const endId = startId + checkRange;
     
     console.log(`Checking projects from ${startId} to ${endId}`);
     
