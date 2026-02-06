@@ -2,7 +2,11 @@ const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const WEB_APP_URL = process.env.WEB_APP_URL || 'https://your-app.railway.app';
+// Убеждаемся, что WEB_APP_URL начинается с https:// и нет пробелов
+let WEB_APP_URL = (process.env.WEB_APP_URL || 'https://your-app.railway.app').trim();
+if (WEB_APP_URL && !WEB_APP_URL.startsWith('http')) {
+  WEB_APP_URL = `https://${WEB_APP_URL}`;
+}
 const START_IMAGE_URL = process.env.START_IMAGE_URL;
 
 /**
@@ -22,6 +26,7 @@ const createBot = () => {
 
   // /start
   bot.onText(/\/start/, (msg) => {
+    console.log('Received /start command from:', msg.chat.id);
     const chatId = msg.chat.id;
 
     const welcomeText =
@@ -93,7 +98,12 @@ const createBot = () => {
 
   if (isWebhookMode) {
     const webhookPath = '/api/telegram/webhook';
-    const webhookUrl = `${publicBaseUrl.replace(/\/$/, '')}${webhookPath}`;
+    // Убеждаемся, что publicBaseUrl начинается с https:// и нет пробелов
+    let webhookBaseUrl = publicBaseUrl.trim().replace(/\/$/, '');
+    if (!webhookBaseUrl.startsWith('http')) {
+      webhookBaseUrl = `https://${webhookBaseUrl}`;
+    }
+    const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
 
     bot
       .setWebHook(webhookUrl)
