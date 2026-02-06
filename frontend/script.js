@@ -251,26 +251,34 @@ const renderProjects = (projects) => {
   });
 };
 
-// Первое фото дома (пропускаем логотипы)
+const isLogoOrIcon = (url) => {
+  if (!url || typeof url !== 'string') return true;
+  const lower = url.toLowerCase();
+  return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|watermark/.test(lower) ||
+    /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
+};
+
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
-  const filtered = images.filter((src) => src && !String(src).toLowerCase().includes('logo'));
-  return filtered[0] || images[0];
+  const filtered = images.filter((src) => src && !isLogoOrIcon(src));
+  const fallback = images.find((src) => src && !/logo|favicon|icon\./.test(String(src).toLowerCase()));
+  return filtered[0] || fallback || null;
 };
 
 // Создание карточки проекта
 const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
-  const imageUrl = getFirstHouseImage(project.images) || 'https://via.placeholder.com/400x300?text=Нет+фото';
+  const firstImg = getFirstHouseImage(project.images);
+  const imageUrl = firstImg && !isLogoOrIcon(firstImg) ? firstImg : 'https://via.placeholder.com/400x300?text=Дом';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
   if (project.material) specs.push(`Материал: ${project.material}`);
   
   const price = project.price 
-    ? `${project.price.toLocaleString('ru-RU')} ₽`
-    : 'Цена по запросу';
+    ? `${project.price.toLocaleString('ru-RU')} ₽*`
+    : 'Цена по запросу*';
   
   const projId = project.id ?? project.project_id;
   const favoriteClass = isFavorite(projId) ? 'active' : '';
@@ -288,6 +296,7 @@ const createProjectCard = (project) => {
       <div class="project-name">${escapeHtml(project.name)}</div>
       <div class="project-specs">${specs.join(' | ')}</div>
       <div class="project-price">${price}</div>
+      <div class="project-price-note">* Уточняйте актуальные цены у менеджера</div>
       <div class="project-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions">
         <button class="btn btn-primary" onclick="showProjectDetails(${projId})">
@@ -323,15 +332,17 @@ const showProjectDetails = async (projectId) => {
     if (project.bedrooms) specs.push(`Спален: ${project.bedrooms}`);
 
     const price = project.price 
-      ? `${project.price.toLocaleString('ru-RU')} ₽`
-      : 'Цена по запросу';
+      ? `${project.price.toLocaleString('ru-RU')} ₽*`
+      : 'Цена по запросу*';
 
-    const mainImage = getFirstHouseImage(project.images) || (project.images && project.images[0]);
+    const allImages = (project.images || []).filter((src) => src && !isLogoOrIcon(src));
+    const mainImage = allImages[0] || (project.images && project.images[0]);
+    const otherImages = allImages.slice(1, 7);
     const modalImagesHtml = mainImage ? `
       <img src="${mainImage}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
-      ${(project.images || []).length > 1 ? `
+      ${otherImages.length > 0 ? `
         <div class="modal-images">
-          ${(project.images || []).slice(1).filter((src) => src && !String(src).toLowerCase().includes('logo')).slice(0, 4).map((img) =>
+          ${otherImages.map((img) =>
             `<img src="${img}" alt="${escapeHtml(project.name)}" onerror="this.style.display='none'">`
           ).join('')}
         </div>
@@ -343,6 +354,7 @@ const showProjectDetails = async (projectId) => {
       <div class="modal-name">${escapeHtml(project.name)}</div>
       <div class="modal-specs">${specs.join(' | ')}</div>
       <div class="modal-price">${price}</div>
+      <div class="modal-price-note">* Уточняйте актуальные цены у менеджера</div>
       <div class="modal-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions">
         <button class="btn btn-secondary" onclick="contactManager(${project.id})">

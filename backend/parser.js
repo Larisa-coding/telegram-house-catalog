@@ -117,29 +117,61 @@ const parseProject = async (projectId, options = {}) => {
                        $('p').first().text().trim() ||
                        '';
 
-    // Изображения
+    const isLogoOrIcon = (url) => {
+      if (!url) return true;
+      const lower = url.toLowerCase();
+      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button/.test(lower) ||
+        /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
+    };
+
     const images = [];
-    $('img').each((i, el) => {
-      let src = $(el).attr('src') || $(el).attr('data-src');
-      if (src && !src.startsWith('http')) {
+    const seen = new Set();
+
+    const addImage = (src) => {
+      if (!src || seen.has(src) || isLogoOrIcon(src) || images.length >= 10) return;
+      if (!src.startsWith('http')) {
         src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
       }
-      if (src && src.includes('project') && images.length < 6) {
-        images.push(src);
+      seen.add(src);
+      images.push(src);
+    };
+
+    // 1. Галерея проекта, рендеры домов
+    $('[class*="gallery"], [class*="slider"], [class*="carousel"], [class*="project"] img').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
+      addImage(src);
+    });
+
+    // 2. Планировки этажей (floor plans)
+    $('img[src*="plan"], img[src*="планир"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src');
+      addImage(src);
+    });
+
+    $('[class*="plan"], [class*="floor"], [class*="layout"] img').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src');
+      addImage(src);
+    });
+
+    // 3. Остальные изображения проекта (рендеры)
+    $('img').each((i, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
+      if (src && (src.includes('project') || src.includes('house') || src.includes('dom') || src.includes('/upload/'))) {
+        addImage(src);
       }
     });
 
-    // Если изображений не найдено, пробуем другие селекторы
-    if (images.length === 0) {
-      $('[class*="image"], [class*="photo"], [class*="gallery"] img').each((i, el) => {
-        let src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
-        if (src && !src.startsWith('http')) {
-          src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
-        }
-        if (src && images.length < 6) {
-          images.push(src);
+    while (images.length < 6) {
+      let added = false;
+      $('img').each((i, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src');
+        if (src && src.includes('http') && !isLogoOrIcon(src) && !seen.has(src)) {
+          addImage(src);
+          added = true;
+          return false;
         }
       });
+      if (!added) break;
     }
 
     const projectData = {
@@ -168,16 +200,23 @@ const parseProject = async (projectId, options = {}) => {
 };
 
 /**
- * Генерирует структурированное описание: плашки + короткий поэтичный текст
+ * Генерирует описание: плашки (без «есть»/«нет») + развёрнутый текст
  */
 const generateDescription = (project) => {
   const badges = [];
   if (project.bedrooms != null) badges.push(`Спальни — ${project.bedrooms}`);
-  badges.push(`Терраса — ${project.has_terrace ? 'есть' : 'нет'}`);
-  badges.push(`Гараж — ${project.has_garage ? 'есть' : 'нет'}`);
-  badges.push(`2 этажа — ${project.has_second_floor ? 'есть' : 'нет'}`);
+  badges.push('Кухня-гостиная');
+  if (project.has_terrace) badges.push('Терраса');
+  if (project.has_garage) badges.push('Гараж');
+  if (project.has_second_floor) badges.push('2 этажа');
   const badgesStr = badges.join(' • ');
-  const poetic = 'Уютный дом для семьи. 🌲';
+  const parts = [];
+  parts.push(`Уютный ${project.has_second_floor ? 'двухэтажный' : 'одноэтажный'} дом из ${project.material || 'качественного материала'}.`);
+  if (project.area) parts.push(`Общая площадь — ${project.area} м².`);
+  parts.push(`Продуманная планировка: ${project.bedrooms ? `${project.bedrooms} спален, ` : ''}светлая кухня-гостиная${project.has_garage ? ', удобный гараж' : ''}.`);
+  if (project.has_terrace) parts.push('Просторная терраса для семейного отдыха.');
+  parts.push('Идеальный вариант для семьи, которая ценит уют и качество. 🌲');
+  const poetic = parts.join(' ');
   return `${badgesStr}\n\n${poetic}`;
 };
 

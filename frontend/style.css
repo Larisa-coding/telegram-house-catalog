@@ -462,7 +462,15 @@ body {
   font-size: 24px;
   font-weight: 700;
   color: var(--mint-darker);
+  margin-bottom: 4px;
+}
+
+.project-price-note,
+.modal-price-note {
+  font-size: 12px;
+  color: var(--text-light);
   margin-bottom: 12px;
+  font-style: italic;
 }
 
 .project-description {
@@ -633,7 +641,7 @@ body {
   font-size: 32px;
   font-weight: 700;
   color: var(--mint-darker);
-  margin-bottom: 20px;
+  margin-bottom: 4px;
 }
 
 .modal-description {
