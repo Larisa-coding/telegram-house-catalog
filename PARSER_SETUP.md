@@ -4,15 +4,22 @@
 
 После деплоя на Railway нужно запустить массовый парсинг всех проектов с сайта строим.дом.рф.
 
-### Способ 1: Через API endpoint
+### Способ 1: Через API endpoint (POST запрос)
 
-Открой в браузере или используй curl:
+**Важно**: Это POST endpoint, не GET! Используй один из способов ниже:
 
+#### Вариант A: Через curl (рекомендуется)
 ```bash
-POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch
+curl -X POST https://telegram-house-catalog-production.up.railway.app/api/parse-batch \
+  -H "Content-Type: application/json" \
+  -d '{"startId": 77000, "endId": 77200}'
 ```
 
-С телом запроса (JSON):
+#### Вариант B: Через Postman или другой API клиент
+- Метод: **POST**
+- URL: `https://telegram-house-catalog-production.up.railway.app/api/parse-batch`
+- Headers: `Content-Type: application/json`
+- Body (JSON):
 ```json
 {
   "startId": 77000,

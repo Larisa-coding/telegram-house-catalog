@@ -10,10 +10,14 @@
 <body>
   <div class="container">
     <header class="header">
-      <h1>🏠 Каталог уютных домов</h1>
+      <h1>КАТАЛОГ ДОМОВ</h1>
     </header>
 
-    <div class="filters">
+    <div class="filters-container">
+      <div class="filters-toggle collapsed" id="filters-toggle">
+        Фильтры
+      </div>
+      <div class="filters" id="filters">
       <div class="filter-group">
         <label for="material-filter">Материал:</label>
         <select id="material-filter">
@@ -35,6 +39,7 @@
       </div>
 
       <button id="reset-filters" class="btn-reset">Сбросить фильтры</button>
+      </div>
     </div>
 
     <div id="loading" class="loading">Загрузка...</div>

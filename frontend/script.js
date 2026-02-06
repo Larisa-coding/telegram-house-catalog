@@ -296,6 +296,14 @@ const debounce = (func, wait) => {
   };
 };
 
+// Сворачивание/разворачивание фильтров
+document.getElementById('filters-toggle').addEventListener('click', () => {
+  const toggle = document.getElementById('filters-toggle');
+  const filters = document.getElementById('filters');
+  toggle.classList.toggle('collapsed');
+  filters.classList.toggle('expanded');
+});
+
 // Инициализация
 loadMaterials();
 loadProjects(true);
