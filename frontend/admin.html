@@ -58,19 +58,34 @@
 
     <div class="admin-card">
       <h2>Удалить лишние проекты</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Введи project_id (строим.дом.рф) через запятую — проекты будут удалены из каталога.</p>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">ID или названия — проекты будут удалены из каталога.</p>
       <form id="delete-batch-form" class="admin-form">
-        <label for="delete-project-ids">ID проектов для удаления</label>
-        <input type="text" id="delete-project-ids" name="projectIds" placeholder="12345, 67890, 11111">
-        <button type="submit" class="btn-batch" id="delete-batch-btn" style="background: #721c24;">Удалить</button>
+        <label for="delete-project-ids">ID проектов (через запятую)</label>
+        <input type="text" id="delete-project-ids" name="projectIds" placeholder="20113, 12345, 67890">
+        <button type="submit" class="btn-batch" id="delete-batch-btn" style="background: #721c24;">Удалить по ID</button>
       </form>
       <div id="delete-batch-msg" class="admin-msg" role="status"></div>
+      <form id="delete-by-names-form" class="admin-form" style="margin-top: 1.5rem;">
+        <label for="delete-names">Или по названию (каждое с новой строки или через запятую)</label>
+        <textarea id="delete-names" name="names" rows="6" placeholder="Империал с гаражом&#10;Микея 3&#10;Фаворит 6х9&#10;МОДЕРН 105">Империал с гаражом
+Микея 3
+Фаворит 6х9 П6-1
+МОДЕРН 105
+Загородный дом Ш-01.24
+Декарт
+Дания Комсомольский
+Lotus ВФ
+фасад силикатный кирпич
+каркасной технологии кд150</textarea>
+        <button type="submit" class="btn-batch" id="delete-by-names-btn" style="background: #721c24;">Удалить по названию</button>
+      </form>
+      <div id="delete-by-names-msg" class="admin-msg" role="status"></div>
     </div>
 
     <div class="admin-card">
-      <h2>Обновить материалы</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Перепарсить все проекты с строим.дом.рф и обновить материал (брус/газобетон) в каталоге.</p>
-      <button id="reparse-materials-btn" class="btn-batch">Обновить материалы всех проектов</button>
+      <h2>Обновить проекты</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Перепарсить все проекты с строим.дом.рф — фото домов, планировки, материал (брус/газобетон). Занимает 2–5 мин.</p>
+      <button id="reparse-materials-btn" class="btn-batch">Обновить все проекты</button>
       <div id="reparse-materials-msg" class="admin-msg" role="status"></div>
     </div>
 
@@ -166,7 +181,6 @@
                   <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Первое посещение</th>
                   <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Последнее посещение</th>
                   <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Визитов</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Сообщений</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,7 +192,6 @@
                     <td style="padding: 0.5rem; font-size: 0.85rem;">${u.first_visit ? new Date(u.first_visit).toLocaleString('ru-RU') : '-'}</td>
                     <td style="padding: 0.5rem; font-size: 0.85rem;">${u.last_visit ? new Date(u.last_visit).toLocaleString('ru-RU') : '-'}</td>
                     <td style="padding: 0.5rem; text-align: center;">${u.visit_count || 0}</td>
-                    <td style="padding: 0.5rem; text-align: center;">${u.message_count || 0}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -224,12 +237,49 @@
       btn.disabled = false;
     });
 
+    document.getElementById('delete-by-names-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = document.getElementById('delete-names').value.trim();
+      const names = raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      const btn = document.getElementById('delete-by-names-btn');
+      const msg = document.getElementById('delete-by-names-msg');
+      if (names.length === 0) {
+        showMsg(msg, 'Введи хотя бы одно название.', true);
+        return;
+      }
+      if (!confirm(`Удалить проекты по ${names.length} запросу(ам)?`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/delete-by-names`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ names }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, `Удалено: ${data.deleted} проект(ов).`);
+          if (data.deleted > 0) document.getElementById('delete-names').value = '';
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
     document.getElementById('reparse-materials-btn').addEventListener('click', async () => {
       const btn = document.getElementById('reparse-materials-btn');
       const msg = document.getElementById('reparse-materials-msg');
       btn.disabled = true;
+      msg.textContent = 'Идёт обновление (2–5 мин)...';
+      msg.className = 'admin-msg success';
+      msg.style.display = 'block';
       try {
-        const res = await fetch(`${API_URL}/reparse-materials`, { method: 'POST' });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000);
+        const res = await fetch(`${API_URL}/reparse-materials`, { method: 'POST', signal: controller.signal });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (data.success) {
           showMsg(msg, `Обновлено: ${data.updated}. Не удалось: ${data.failed?.length || 0}.`, data.failed?.length > 0);
@@ -237,7 +287,7 @@
           showMsg(msg, data.error || 'Ошибка.', true);
         }
       } catch (err) {
-        showMsg(msg, 'Ошибка сети или сервера.', true);
+        showMsg(msg, err.name === 'AbortError' ? 'Превышено время ожидания. Проверьте сервер.' : 'Ошибка сети или сервера.', true);
       }
       btn.disabled = false;
     });
