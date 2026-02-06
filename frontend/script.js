@@ -198,18 +198,32 @@ const loadProjects = async (reset = false) => {
   }
 };
 
-// Показать счётчик найденных объектов
+const declenseProject = (n) => {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'проект';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'проекта';
+  return 'проектов';
+};
+const declenseObject = (n) => {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'объект';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'объекта';
+  return 'объектов';
+};
+
 const showResultsCount = (count, hasFilters) => {
   const el = document.getElementById('results-count');
   if (!el) return;
   if (showFavoritesOnly) {
-    el.textContent = `Избранное: ${count} ${count === 1 ? 'проект' : count < 5 ? 'проекта' : 'проектов'}`;
+    el.textContent = `Избранное: ${count} ${declenseProject(count)}`;
     el.style.display = count > 0 ? 'block' : 'none';
   } else if (hasFilters && count >= 0) {
-    el.textContent = `Найдено ${count} ${count === 1 ? 'объект' : count < 5 ? 'объекта' : 'объектов'}`;
+    el.textContent = `Найдено ${count} ${declenseObject(count)}`;
     el.style.display = 'block';
   } else if (count >= 0) {
-    el.textContent = `${count} ${count === 1 ? 'проект' : count < 5 ? 'проекта' : 'проектов'}`;
+    el.textContent = `${count} ${declenseProject(count)}`;
     el.style.display = count > 0 ? 'block' : 'none';
   } else {
     el.style.display = 'none';
@@ -254,15 +268,14 @@ const renderProjects = (projects) => {
 const isLogoOrIcon = (url) => {
   if (!url || typeof url !== 'string') return true;
   const lower = url.toLowerCase();
-  return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|watermark/.test(lower) ||
+  return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|watermark|уютн/.test(lower) ||
     /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
 };
 
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
   const filtered = images.filter((src) => src && !isLogoOrIcon(src));
-  const fallback = images.find((src) => src && !/logo|favicon|icon\./.test(String(src).toLowerCase()));
-  return filtered[0] || fallback || null;
+  return filtered[0] || images.find((src) => src && !/logo|favicon|icon|уютн/i.test(String(src))) || null;
 };
 
 // Создание карточки проекта
@@ -270,7 +283,7 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const imageUrl = firstImg && !isLogoOrIcon(firstImg) ? firstImg : 'https://via.placeholder.com/400x300?text=Дом';
+  const imageUrl = firstImg || 'https://via.placeholder.com/400x300?text=Дом';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -337,7 +350,7 @@ const showProjectDetails = async (projectId) => {
 
     const allImages = (project.images || []).filter((src) => src && !isLogoOrIcon(src));
     const mainImage = allImages[0] || (project.images && project.images[0]);
-    const otherImages = allImages.slice(1, 7);
+    const otherImages = allImages.slice(1, 15);
     const modalImagesHtml = mainImage ? `
       <img src="${mainImage}" alt="${escapeHtml(project.name)}" class="modal-image" onerror="this.style.display='none'">
       ${otherImages.length > 0 ? `
@@ -356,10 +369,9 @@ const showProjectDetails = async (projectId) => {
       <div class="modal-price">${price}</div>
       <div class="modal-price-note">* Уточняйте актуальные цены у менеджера</div>
       <div class="modal-description">${renderDescription(project.formatted_description || project.description || '')}</div>
-      <div class="project-actions">
-        <button class="btn btn-secondary" onclick="contactManager(${project.id})">
-          Связаться с менеджером
-        </button>
+      <div class="project-actions modal-actions">
+        <a href="https://строим.дом.рф/project/${project.project_id || project.id}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Подробнее на сайте</a>
+        <button class="btn btn-secondary" onclick="contactManager(${project.id})">Связаться с менеджером</button>
       </div>
     `;
 

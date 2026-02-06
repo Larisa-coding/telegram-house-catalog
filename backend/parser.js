@@ -120,7 +120,7 @@ const parseProject = async (projectId, options = {}) => {
     const isLogoOrIcon = (url) => {
       if (!url) return true;
       const lower = url.toLowerCase();
-      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button/.test(lower) ||
+      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|уютн/.test(lower) ||
         /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
     };
 
@@ -128,7 +128,7 @@ const parseProject = async (projectId, options = {}) => {
     const seen = new Set();
 
     const addImage = (src) => {
-      if (!src || seen.has(src) || isLogoOrIcon(src) || images.length >= 10) return;
+      if (!src || seen.has(src) || isLogoOrIcon(src) || images.length >= 20) return;
       if (!src.startsWith('http')) {
         src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
       }
