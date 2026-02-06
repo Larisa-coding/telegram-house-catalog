@@ -45,11 +45,11 @@ const parseProject = async (projectId, options = {}) => {
                  $('.project-title').text().trim() ||
                  $('[class*="title"]').first().text().trim();
 
-    // Основные плашки — Content_general__item (площадь, материал, спальни, ванные)
+    // Основные плашки — Content_general_item (площадь, материал, спальни, ванные)
     let area = null;
     let material = null;
     let bedrooms = null;
-    $('[class*="Content_general__item"]').each((i, el) => {
+    $('[class*="Content_general_item"], [class*="Content_general__item"]').each((i, el) => {
       const $item = $(el);
       const ps = $item.find('p');
       if (ps.length < 2) return;
