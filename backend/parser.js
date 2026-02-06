@@ -502,7 +502,7 @@ const parseProject = async (projectId, options = {}) => {
       url: url,
     };
 
-    console.log(`Successfully parsed project ${projectId}:`, projectData);
+    console.log(`Successfully parsed project ${projectId}: ${projectData.name} (${projectData.images?.length ?? 0} images)`);
     return projectData;
 
   } catch (error) {
