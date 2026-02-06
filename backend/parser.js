@@ -70,46 +70,56 @@ const parseProject = async (projectId, options = {}) => {
       }
     });
 
-    // Материал — сначала ищем в поле "Материал наружных стен" / "Материал стен"
+    // Материал — ТОЛЬКО брус или газобетон, строго по данным сайта
     let material = null;
     const bodyText = $('body').text();
 
-    const extractMaterialFromField = () => {
-      let found = null;
-      $('*').each((i, el) => {
-        const text = $(el).text().trim();
-        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test(text) && text.length < 150 && !found) {
-          const next = $(el).next();
-          const nextText = next.text().trim().toLowerCase();
-          const parentText = $(el).parent().text();
-          if (nextText.includes('газобетон') || nextText.includes('газоблок')) { found = 'газобетон'; return false; }
-          if (nextText.includes('брус')) { found = 'брус'; return false; }
-          const match = parentText.match(/Материал[^]*?(газобетон|газоблок|брус)/i);
-          if (match && match[1]) {
-            const val = match[1].toLowerCase();
-            if (val.includes('газобетон') || val.includes('газоблок')) { found = 'газобетон'; return false; }
-            if (val.includes('брус')) { found = 'брус'; return false; }
-          }
+    const extractMaterial = () => {
+      const setFromVal = (val) => {
+        const v = String(val).toLowerCase();
+        if (/газобетон|газоблок|газоблочный/.test(v)) { material = 'газобетон'; return true; }
+        if (/\bбрус\b|клееный брус|профилированный брус/.test(v)) { material = 'брус'; return true; }
+        return false;
+      };
+
+      // 1. dt/dd: <dt>Материал наружных стен</dt><dd>Газобетон</dd> — берём только значение dd
+      $('dt').each((i, el) => {
+        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test($(el).text())) {
+          const next = $(el).next('dd');
+          if (next.length && setFromVal(next.text().trim())) return false;
         }
       });
-      return found;
+      if (material) return;
+
+      // 2. Таблица: td с "Материал" — соседняя ячейка в той же строке
+      $('td, th').each((i, el) => {
+        const $el = $(el);
+        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test($el.text().trim()) && $el.text().trim().length < 50) {
+          const $row = $el.closest('tr');
+          const idx = $row.children().index($el);
+          const $next = $row.children().eq(idx + 1);
+          if ($next.length && setFromVal($next.text().trim())) return false;
+        }
+      });
+      if (material) return;
+
+      // 3. Контекст "Материал наружных стен: XXX" — только ближайшие 80 символов
+      const near = bodyText.match(/Материал\s+наружных\s+стен\s*[:\s]*([а-яёА-ЯЁ\s\-]+?)(?:\n|$|Площадь|Спальни|м²)/i);
+      if (near && setFromVal(near[1])) return;
+
+      // 4. [class*="value"] рядом с "Материал"
+      $('[class*="param"], [class*="characteristic"], [class*="spec"]').each((i, el) => {
+        const txt = $(el).text();
+        if (/Материал\s+(наружных\s+)?стен|Материал\s+стен/i.test(txt) && txt.length < 200) {
+          const $val = $(el).find('[class*="value"]');
+          if ($val.length && setFromVal($val.first().text())) return false;
+          const val = txt.replace(/Материал\s+(наружных\s+)?стен\s*[:\s]*/gi, '').trim().split(/\s/)[0];
+          if (val && setFromVal(val)) return false;
+        }
+      });
     };
 
-    material = extractMaterialFromField();
-
-    if (!material) {
-      const nearMaterial = bodyText.match(/Материал\s+наружных\s+стен[^\n]{0,150}/gi);
-      if (nearMaterial) {
-        const block = nearMaterial.join(' ').toLowerCase();
-        if (block.includes('газобетон') || block.includes('газоблок')) material = 'газобетон';
-        else if (block.includes('брус')) material = 'брус';
-      }
-    }
-
-    if (!material) {
-      if (bodyText.match(/газобетон|газоблок/i)) material = 'газобетон';
-      else if (bodyText.match(/брус/i)) material = 'брус';
-    }
+    extractMaterial();
 
     // Количество спален (ищем в разделе "Объемно-планировочные решения")
     let bedrooms = null;
@@ -146,8 +156,8 @@ const parseProject = async (projectId, options = {}) => {
     const isLogoOrIcon = (url) => {
       if (!url) return true;
       const lower = url.toLowerCase();
-      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|уютн/.test(lower) ||
-        /\/icons?\/|\/logo\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
+      return /logo|favicon|icon|emblem|brand|header|nav|avatar|sprite|banner|button|уютн|contractor|catalogue|katalog|placeholder|default|noimage|watermark|каталог/.test(lower) ||
+        /\/icons?\/|\/logo\/|\/contractor\/|logo\.(png|svg|jpg|jpeg|gif)|favicon\./.test(lower);
     };
 
     const isFloorPlan = (url) => {
@@ -160,8 +170,15 @@ const parseProject = async (projectId, options = {}) => {
     const housePhotos = [];
     const floorPlans = [];
 
-    const addTo = (arr, src, max = 15) => {
-      if (!src || seen.has(src) || isLogoOrIcon(src) || arr.length >= max) return;
+    const isBrandingImg = (el, src) => {
+      if (isLogoOrIcon(src)) return true;
+      const alt = ((el && $(el).attr('alt')) || '').toLowerCase();
+      const title = ((el && $(el).attr('title')) || '').toLowerCase();
+      return /уютн|каталог|логотип|logo|бренд/.test(alt) || /уютн|каталог|логотип|logo/.test(title);
+    };
+
+    const addTo = (arr, src, max = 15, el) => {
+      if (!src || seen.has(src) || isLogoOrIcon(src) || (el && isBrandingImg(el, src)) || arr.length >= max) return;
       if (!src.startsWith('http')) {
         src = src.startsWith('//') ? `https:${src}` : `${BASE_URL}${src}`;
       }
@@ -169,16 +186,16 @@ const parseProject = async (projectId, options = {}) => {
       arr.push(src);
     };
 
-    // 1. Фото домов (рендеры, галерея) — БЕЗ планов этажей
+    // 1. Фото домов (рендеры, галерея) — БЕЗ планов этажей и логотипов
     $('[class*="gallery"], [class*="slider"], [class*="carousel"], [class*="project"] img').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-srcset')?.split(' ')[0];
-      if (src && !isFloorPlan(src)) addTo(housePhotos, src, 12);
+      if (src && !isFloorPlan(src)) addTo(housePhotos, src, 12, el);
     });
 
     $('img').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
       if (src && (src.includes('project') || src.includes('house') || src.includes('dom') || src.includes('/upload/')) && !isFloorPlan(src)) {
-        addTo(housePhotos, src, 12);
+        addTo(housePhotos, src, 12, el);
       }
     });
 
@@ -186,8 +203,8 @@ const parseProject = async (projectId, options = {}) => {
       let added = false;
       $('img').each((i, el) => {
         const src = $(el).attr('src') || $(el).attr('data-src');
-        if (src && src.includes('http') && !isLogoOrIcon(src) && !isFloorPlan(src) && !seen.has(src)) {
-          addTo(housePhotos, src, 12);
+        if (src && src.includes('http') && !isLogoOrIcon(src) && !isFloorPlan(src) && !isBrandingImg(el, src) && !seen.has(src)) {
+          addTo(housePhotos, src, 12, el);
           added = true;
           return false;
         }
@@ -198,11 +215,11 @@ const parseProject = async (projectId, options = {}) => {
     // 2. Поэтажные планы (планировки) — отдельно, после фото домов
     $('img[src*="plan"], img[src*="планир"], img[alt*="план"], img[alt*="этаж"]').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src');
-      addTo(floorPlans, src, 10);
+      addTo(floorPlans, src, 10, el);
     });
     $('[class*="plan"], [class*="floor"], [class*="layout"], [class*="планиров"] img').each((i, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src');
-      if (src && isFloorPlan(src)) addTo(floorPlans, src, 10);
+      if (src && isFloorPlan(src)) addTo(floorPlans, src, 10, el);
     });
 
     const images = [...housePhotos, ...floorPlans].slice(0, 25);
