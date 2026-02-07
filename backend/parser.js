@@ -7,6 +7,14 @@ const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
 // Punycode домен — как на сайте (xn--80az8a.xn--d1aqf.xn--p1ai = строим.дом.рф)
 const RESIZER_BASE = 'https://xn--80az8a.xn--d1aqf.xn--p1ai/resizer/v2/image';
 
+/** Формат как на сайте — width=1024, quality=80 для планировок */
+const buildResizerUrl = (hex, opts = {}) => {
+  const w = opts.width ?? 1200;
+  const q = opts.quality ?? 90;
+  const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
+  return `${RESIZER_BASE}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=${q}&resizeType=fill&systemClientId=igs-client&width=${w}`;
+};
+
 /**
  * Справочник outerWallMaterial (ID → название). Источник: строим.дом.рф / dom.rf.
  * Дополняй по мере обнаружения новых ID.
@@ -210,8 +218,7 @@ const parseFloorPlans = (html) => {
         ids.forEach((fid) => {
           const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
           if (hex.length >= 10) {
-            const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
-            addPlan(`${resizerBase}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
+            addPlan(buildResizerUrl(hex, { width: 1024, quality: 80 }));
           }
         });
       });
@@ -459,8 +466,7 @@ const parseProject = async (projectId, options = {}) => {
         renderIds.forEach((fid) => {
           const hex = String(fid).replace(/[^0-9A-Fa-f]/g, '');
           if (hex.length >= 10) {
-            const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
-            fromNext.push(`${RESIZER_BASE}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=90&resizeType=fill&systemClientId=igs-client&width=1200`);
+            fromNext.push(buildResizerUrl(hex, { width: 1024, quality: 80 }));
           }
         });
         if (fromNext.length > 0) {
