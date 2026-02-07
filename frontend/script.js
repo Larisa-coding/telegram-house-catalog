@@ -31,9 +31,11 @@ const getProxyFallbackUrl = (url) => {
 };
 
 let currentOffset = 0;
+let totalCount = 0;
 let isLoading = false;
 let hasMore = true;
 let showFavoritesOnly = false;
+const PAGE_SIZE = 12;
 
 // Управление избранным (localStorage)
 const FAVORITES_KEY = 'house_catalog_favorites';
@@ -141,7 +143,8 @@ const loadProjects = async (reset = false) => {
       showResultsCount(projects.length, false);
     } else {
       const filters = getFilters();
-      const queryParams = { ...filters, limit: 500, offset: 0 };
+      const offset = reset ? 0 : currentOffset;
+      const queryParams = { ...filters, limit: PAGE_SIZE, offset };
       const params = new URLSearchParams();
       Object.entries(queryParams).forEach(([k, v]) => {
         if (v != null && v !== '') params.set(k, String(v));
@@ -172,8 +175,8 @@ const loadProjects = async (reset = false) => {
       }
 
       projects = Array.isArray(rawData.data) ? rawData.data : [];
-      const totalCount = rawData.total ?? projects.length;
-      hasMore = false;
+      totalCount = rawData.total ?? 0;
+      hasMore = currentOffset + projects.length < totalCount;
       showResultsCount(totalCount, Object.keys(filters).length > 0);
     }
 
@@ -190,9 +193,11 @@ const loadProjects = async (reset = false) => {
     } else {
       renderProjects(projects);
       currentOffset += projects.length;
+      if (!showFavoritesOnly) hasMore = currentOffset < totalCount;
     }
 
-    document.getElementById('load-more').style.display = 'none';
+    const loadMoreEl = document.getElementById('load-more');
+    if (loadMoreEl) loadMoreEl.style.display = hasMore && !showFavoritesOnly ? 'block' : 'none';
 
   } catch (error) {
     console.error('Error loading projects:', error);
