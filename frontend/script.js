@@ -7,6 +7,17 @@ const getApiBase = () => {
   return origin.replace(/\/$/, '');
 };
 const API_URL = getApiBase() + '/api';
+
+// wsrv.nl — внешний image proxy (дом.рф блокирует прямые запросы из приложения)
+const IMG_PROXY = 'https://wsrv.nl';
+const toImgUrl = (url) => {
+  if (!url || !url.startsWith('http')) return url;
+  if (url.includes('xn--80az8a') || url.includes('строим.дом')) {
+    return `${IMG_PROXY}/?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+};
+
 let currentOffset = 0;
 let isLoading = false;
 let hasMore = true;
@@ -292,7 +303,7 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const imageUrl = firstImg && firstImg.startsWith('http') ? firstImg : 'https://via.placeholder.com/400x300?text=Дом';
+  const imageUrl = firstImg && firstImg.startsWith('http') ? toImgUrl(firstImg) : 'https://via.placeholder.com/400x300?text=Дом';
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -308,7 +319,7 @@ const createProjectCard = (project) => {
   
   card.innerHTML = `
     <div class="project-image-container">
-      <img src="${imageUrl}" alt="${project.name}" class="project-image" referrerpolicy="no-referrer"
+      <img src="${imageUrl}" alt="${project.name}" class="project-image"
            onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
       <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${projId}, this)" title="Добавить в избранное">
         ${favoriteIcon}
@@ -365,7 +376,7 @@ const showProjectDetails = async (projectId) => {
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
     const imgTag = (url, cls) => {
       if (!url || !url.startsWith('http')) return '';
-      return `<img src="${escapeHtml(url)}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="this.style.display='none'" referrerpolicy="no-referrer">`;
+      return `<img src="${escapeHtml(toImgUrl(url))}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="this.style.display='none'">`;
     };
     const modalImagesHtml = mainImage ? `
       ${imgTag(mainImage, 'modal-image')}
