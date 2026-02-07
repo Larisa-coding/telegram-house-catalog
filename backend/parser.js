@@ -4,15 +4,15 @@ require('dotenv').config();
 
 const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
-// Punycode домен — как на сайте (xn--80az8a.xn--d1aqf.xn--p1ai = строим.дом.рф)
-const RESIZER_BASE = 'https://xn--80az8a.xn--d1aqf.xn--p1ai/resizer/v2/image';
+// Punycode: xn--80az8a = строим.дом.рф, xn--80aakn = наш.дом.рф (наш.дом.рф отдаёт картинки)
+const RESIZER_BASE = 'https://xn--80aakn.xn--d1aqf.xn--p1ai/resizer/v2/image';
 
-/** Формат как на сайте — width=1024, quality=80 для планировок */
+/** Формат как на наш.дом.рф — extend=true, dpr=1, width=1032 (рабочий URL из галереи) */
 const buildResizerUrl = (hex, opts = {}) => {
-  const w = opts.width ?? 1200;
-  const q = opts.quality ?? 90;
+  const w = opts.width ?? 1032;
+  const q = opts.quality ?? 80;
   const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
-  return `${RESIZER_BASE}?dpr=1.5&enlarge=true&height=0&imageUrl=${imageUrl}&quality=${q}&resizeType=fill&systemClientId=igs-client&width=${w}`;
+  return `${RESIZER_BASE}?dpr=1&enlarge=true&extend=true&height=0&imageUrl=${imageUrl}&quality=${q}&resizeType=fill&systemClientId=igs-client&width=${w}`;
 };
 
 /**

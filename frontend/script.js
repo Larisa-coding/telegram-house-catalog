@@ -12,7 +12,9 @@ const API_URL = getApiBase() + '/api';
 const IMG_PROXY = 'https://wsrv.nl';
 const toImgUrl = (url) => {
   if (!url || !url.startsWith('http')) return url;
-  if (url.includes('xn--80az8a') || url.includes('строим.дом')) {
+  const needsProxy = url.includes('xn--80az8a') || url.includes('xn--80aakn') ||
+    url.includes('строим.дом') || url.includes('наш.дом');
+  if (needsProxy) {
     return `${IMG_PROXY}/?url=${encodeURIComponent(url)}`;
   }
   return url;
