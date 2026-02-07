@@ -49,14 +49,19 @@ app.get('/api/proxy-image', async (req, res) => {
       res.set('Content-Type', ct);
       return resp.data.pipe(res);
     }
-    // наш.дом.рф возвращает 502/500 — используем Puppeteer (реальный Chrome)
-    if (isNash) {
-      const { fetchImage } = require('./lib/puppeteer-fetch');
-      const data = await fetchImage(url);
-      if (data) {
-        res.set('Cache-Control', 'public, max-age=86400');
-        res.set('Content-Type', data.contentType);
-        return res.send(data.buffer);
+    // наш.дом.рф возвращает 502/500 — Puppeteer отключён на Railway (нет Chromium, OOM)
+    const puppeteerEnabled = process.env.DISABLE_PUPPETEER !== '1' && !process.env.RAILWAY_ENVIRONMENT;
+    if (isNash && puppeteerEnabled) {
+      try {
+        const { fetchImage } = require('./lib/puppeteer-fetch');
+        const data = await fetchImage(url);
+        if (data) {
+          res.set('Cache-Control', 'public, max-age=86400');
+          res.set('Content-Type', data.contentType);
+          return res.send(data.buffer);
+        }
+      } catch (e) {
+        console.warn('puppeteer-fetch skipped:', e.message);
       }
     }
     console.error('proxy-image:', url.slice(0, 80), '->', resp.status || 'puppeteer failed');

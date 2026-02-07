@@ -5,33 +5,41 @@
 let browser = null;
 let browserPromise = null;
 
+const LAUNCH_TIMEOUT_MS = 12000;
+
 const getBrowser = async () => {
   if (browser && browser.connected) return browser;
   if (browserPromise) return browserPromise;
-  browserPromise = (async () => {
-    try {
-      const puppeteer = require('puppeteer');
-      const b = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--single-process',
-        ],
-      });
+  const launchTask = (async () => {
+    const puppeteer = require('puppeteer');
+    const b = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+      ],
+    });
+    return b;
+  })();
+  const timeoutPromise = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error('Puppeteer launch timeout')), LAUNCH_TIMEOUT_MS)
+  );
+  browserPromise = Promise.race([launchTask, timeoutPromise])
+    .then((b) => {
       browser = b;
       b.on('disconnected', () => {
         browser = null;
         browserPromise = null;
       });
       return b;
-    } catch (e) {
+    })
+    .catch((e) => {
       browserPromise = null;
       throw e;
-    }
-  })();
+    });
   return browserPromise;
 };
 
