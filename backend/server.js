@@ -543,6 +543,64 @@ app.post('/api/projects/delete-batch', async (req, res) => {
   }
 });
 
+// POST /api/compress-images — сжать все base64 фото в проектах (макс 1200px, JPEG 80%)
+app.post('/api/compress-images', async (req, res) => {
+  try {
+    const sharp = require('sharp');
+    const result = await pool.query('SELECT id, project_id, images FROM projects WHERE images IS NOT NULL AND images != \'[]\'::jsonb');
+    const MAX_SIZE = 1200;
+    const QUALITY = 80;
+    let totalCompressed = 0;
+    let projectsUpdated = 0;
+
+    const compressBase64 = async (dataUrl) => {
+      if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return dataUrl;
+      try {
+        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const buf = Buffer.from(base64Data, 'base64');
+        const out = await sharp(buf)
+          .resize(MAX_SIZE, MAX_SIZE, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: QUALITY })
+          .toBuffer();
+        return 'data:image/jpeg;base64,' + out.toString('base64');
+      } catch (e) {
+        console.warn('compress skip:', e.message);
+        return dataUrl;
+      }
+    };
+
+    for (const row of result.rows) {
+      const norm = normalizeImages(row.images);
+      const all = [...(norm.main || []), ...(norm.gallery || [])];
+      const toCompress = all.filter((s) => s && typeof s === 'string' && s.startsWith('data:image/'));
+      if (toCompress.length === 0) continue;
+
+      const compressed = await Promise.all(toCompress.map(compressBase64));
+      let cIdx = 0;
+      const newImages = all.map((s) => {
+        if (s && typeof s === 'string' && s.startsWith('data:image/')) {
+          totalCompressed += 1;
+          return compressed[cIdx++];
+        }
+        return s;
+      });
+
+      await pool.query('UPDATE projects SET images = $1 WHERE id = $2', [JSON.stringify(newImages), row.id]);
+      projectsUpdated += 1;
+    }
+
+    res.json({
+      success: true,
+      message: `Сжато ${totalCompressed} фото в ${projectsUpdated} проектах.`,
+      compressed: totalCompressed,
+      projectsUpdated,
+    });
+  } catch (error) {
+    console.error('compress-images:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/projects/clear-all-images — очистить images и floor_plans у всех проектов (убрать спарсенные URL, загружать свои)
 app.post('/api/projects/clear-all-images', async (req, res) => {
   try {

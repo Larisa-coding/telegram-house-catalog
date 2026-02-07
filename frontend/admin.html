@@ -58,6 +58,13 @@
     </div>
 
     <div class="admin-card">
+      <h2>Сжать загруженные фото</h2>
+      <p>Сжать base64-фото в проектах (макс 1200px, JPEG 80%). Уменьшит размер и ускорит загрузку каталога.</p>
+      <button id="compress-images-btn" class="admin-btn admin-btn-primary admin-btn-sm">Сжать все фото</button>
+      <div id="compress-images-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>Очистить все фото</h2>
       <p>Удалить спарсенные фото (дом.рф) у всех проектов. После этого загружай свои фото — они будут отображаться сразу.</p>
       <button id="clear-all-images-btn" class="admin-btn admin-btn-danger admin-btn-sm">Очистить фото у всех проектов</button>
@@ -252,6 +259,27 @@
         if (data.success) {
           showMsg(msg, `Удалено: ${data.deleted} проект(ов).`);
           if (data.deleted > 0) document.getElementById('delete-names').value = '';
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById('compress-images-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('compress-images-btn');
+      const msg = document.getElementById('compress-images-msg');
+      btn.disabled = true;
+      msg.textContent = 'Сжатие... Подождите.';
+      msg.className = 'admin-msg';
+      msg.style.display = 'block';
+      try {
+        const res = await fetch(`${API_URL}/compress-images`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, data.message || `Сжато ${data.compressed} фото.`, false);
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
         }
