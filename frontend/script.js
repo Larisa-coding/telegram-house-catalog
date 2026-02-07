@@ -8,9 +8,10 @@ const getApiBase = () => {
 };
 const API_URL = getApiBase() + '/api';
 
-// дом.рф — wsrv.nl (CDN), fallback на наш proxy
+// дом.рф — wsrv.nl (CDN), fallback на наш proxy. data: — как есть (загрузки из админки)
 const toImgUrl = (url) => {
-  if (!url || !url.startsWith('http')) return url;
+  if (!url || typeof url !== 'string') return url;
+  if (url.startsWith('data:')) return url;
   const needsProxy = url.includes('xn--80az8a') || url.includes('xn--h1aieheg') ||
     url.includes('строим.дом') || url.includes('наш.дом');
   if (needsProxy) {
@@ -305,6 +306,8 @@ const isTinyThumbnail = (url) => /width=32|width=64|height=32|height=64/.test(ur
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
   const filtered = images.filter((src) => src && !isLogoOrIcon(src) && !isFloorPlan(src) && !isTinyThumbnail(src));
+  const uploaded = filtered.find((src) => src.startsWith('data:'));
+  if (uploaded) return uploaded;
   const fallback = images.find((src) => src && !isLogoOrIcon(src) && !isTinyThumbnail(src));
   return filtered[0] || fallback || images[0] || null;
 };

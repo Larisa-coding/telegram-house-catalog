@@ -13,7 +13,7 @@ const frontendDir = path.join(__dirname, '../frontend');
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(frontendDir));
 
 // GET /api/proxy-image?url=... — прокси изображений (обход CORS/блокировки для наш.дом.рф)
@@ -400,6 +400,39 @@ app.post('/api/parse-batch', async (req, res) => {
     res.json({ success: true, ...results });
   } catch (error) {
     console.error('Error parse-batch:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/projects/:id — обновить проект (images, floor_plans). images — массив URL или data:base64
+app.patch('/api/projects/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { images, floor_plans, appendImages } = req.body || {};
+    const row = await pool.query(
+      'SELECT id, project_id, images, floor_plans FROM projects WHERE id = $1 OR project_id = $1',
+      [id]
+    );
+    if (row.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Проект не найден' });
+    }
+    const project = row.rows[0];
+    let newImages = project.images || [];
+    let newPlans = project.floor_plans || [];
+    if (Array.isArray(images)) newImages = images;
+    if (Array.isArray(appendImages) && appendImages.length > 0) {
+      const maxSize = 800000;
+      const valid = appendImages.filter((s) => typeof s === 'string' && s.startsWith('data:image/') && s.length < maxSize);
+      newImages = [...newImages, ...valid];
+    }
+    if (Array.isArray(floor_plans)) newPlans = floor_plans;
+    await pool.query(
+      'UPDATE projects SET images = $1, floor_plans = $2 WHERE id = $3',
+      [JSON.stringify(newImages), JSON.stringify(newPlans), project.id]
+    );
+    res.json({ success: true, message: 'Проект обновлён', data: { images: newImages.length, floor_plans: newPlans.length } });
+  } catch (error) {
+    console.error('Error updating project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

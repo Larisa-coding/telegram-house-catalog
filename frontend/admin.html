@@ -56,6 +56,19 @@
       <div id="projects-list" style="max-height: 300px; overflow-y: auto; font-size: 0.9rem;"></div>
     </div>
 
+    <div class="admin-card" id="edit-project-card" style="display: none;">
+      <h2>Редактировать проект <span id="edit-project-name"></span></h2>
+      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Добавь фото с компьютера — они сохранятся в БД и будут отображаться в приложении.</p>
+      <div class="admin-form">
+        <label>Добавить фото</label>
+        <input type="file" id="edit-photos-input" accept="image/*" multiple>
+        <button type="button" id="edit-add-photos-btn" class="btn-add" style="margin-top: 0.5rem;">Добавить выбранные фото</button>
+      </div>
+      <div id="edit-project-preview" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;"></div>
+      <div id="edit-project-msg" class="admin-msg" role="status"></div>
+      <button type="button" id="edit-close-btn" class="btn-batch" style="margin-top: 1rem;">Закрыть</button>
+    </div>
+
     <div class="admin-card">
       <h2>Удалить лишние проекты</h2>
       <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">ID или названия — проекты будут удалены из каталога.</p>
@@ -310,7 +323,10 @@ Lotus ВФ
                   <tr style="border-bottom: 1px solid var(--glass-border);">
                     <td style="padding: 0.5rem;">${p.project_id}</td>
                     <td style="padding: 0.5rem;">${(p.name || '-').substring(0, 50)}</td>
-                    <td style="padding: 0.5rem;"><button type="button" class="btn-batch" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" onclick="deleteProject(${p.project_id}, this)">Удалить</button></td>
+                    <td style="padding: 0.5rem;">
+                      <button type="button" class="btn-add edit-photo-btn" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; margin-right: 0.25rem;" data-id="${p.project_id}" data-name="${(p.name || '-').replace(/"/g, '&quot;').substring(0, 50)}">Фото</button>
+                      <button type="button" class="btn-batch" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" onclick="deleteProject(${p.project_id}, this)">Удалить</button>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -338,6 +354,80 @@ Lotus ВФ
       }
       btn.disabled = false;
     };
+
+    let currentEditProjectId = null;
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.edit-photo-btn');
+      if (btn) {
+        currentEditProjectId = parseInt(btn.dataset.id, 10);
+        const projectName = btn.dataset.name || currentEditProjectId;
+      document.getElementById('edit-project-name').textContent = projectName;
+      document.getElementById('edit-project-card').style.display = 'block';
+      document.getElementById('edit-photos-input').value = '';
+      document.getElementById('edit-project-msg').style.display = 'none';
+      document.getElementById('edit-project-preview').innerHTML = '';
+      }
+    });
+
+    document.getElementById('edit-close-btn').addEventListener('click', () => {
+      document.getElementById('edit-project-card').style.display = 'none';
+      currentEditProjectId = null;
+    });
+
+    document.getElementById('edit-add-photos-btn').addEventListener('click', async () => {
+      const input = document.getElementById('edit-photos-input');
+      const msg = document.getElementById('edit-project-msg');
+      const btn = document.getElementById('edit-add-photos-btn');
+      if (!currentEditProjectId || !input.files || input.files.length === 0) {
+        showMsg(msg, 'Выберите хотя бы одно фото.', true);
+        return;
+      }
+      btn.disabled = true;
+      msg.style.display = 'none';
+      const files = Array.from(input.files);
+      const dataUrls = [];
+      for (const f of files) {
+        if (!f.type.startsWith('image/')) continue;
+        const dataUrl = await new Promise((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.readAsDataURL(f);
+        });
+        if (dataUrl.length < 800000) dataUrls.push(dataUrl);
+      }
+      if (dataUrls.length === 0) {
+        showMsg(msg, 'Нет подходящих фото (только jpg/png, до 800 КБ каждое).', true);
+        btn.disabled = false;
+        return;
+      }
+      try {
+        const res = await fetch(`${API_URL}/projects/${currentEditProjectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appendImages: dataUrls }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, `Добавлено ${dataUrls.length} фото. Всего: ${(data.data?.images || dataUrls.length)}`);
+          input.value = '';
+          const preview = document.getElementById('edit-project-preview');
+          dataUrls.forEach((u) => {
+            const img = document.createElement('img');
+            img.src = u;
+            img.style.width = '80px';
+            img.style.height = '60px';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '4px';
+            preview.appendChild(img);
+          });
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
 
     document.getElementById('load-projects-btn').addEventListener('click', loadProjects);
     document.getElementById('load-users-btn').addEventListener('click', loadUsers);
