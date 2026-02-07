@@ -654,26 +654,6 @@ body {
   background: #FBFCFC;
 }
 
-.modal-close-btn {
-  display: block;
-  width: 100%;
-  margin-bottom: 1rem;
-  padding: 12px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  font-family: inherit;
-  font-size: 16px;
-  color: var(--text-dark);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.modal-close-btn:hover {
-  background: var(--mint-color);
-  color: white;
-}
-
 .modal-name {
   font-size: 28px;
   font-weight: 600;
