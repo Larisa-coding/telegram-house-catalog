@@ -428,6 +428,7 @@ const showProjectDetails = async (projectId) => {
 
     modalBody.innerHTML = `
       ${modalImagesHtml}
+      <button type="button" class="modal-close-btn" aria-label="Закрыть и вернуться ко всем проектам">← Закрыть</button>
       <div class="modal-name">${escapeHtml(project.name)}</div>
       <div class="modal-specs">${specs.join(' | ')}</div>
       <div class="modal-price">${price}</div>
@@ -537,18 +538,15 @@ const renderDescription = (desc) => {
   return `<div class="desc-badges">${badgesHtml}</div>${poetic ? `<div class="desc-poetic">${escapeHtml(poetic)}</div>` : ''}`;
 };
 
-// Закрытие модального окна
-const closeEl = document.querySelector('.close');
-if (closeEl) closeEl.addEventListener('click', () => {
-  const modal = document.getElementById('modal');
-  if (modal) modal.style.display = 'none';
+// Закрытие модального окна (крестик + кнопка «Закрыть»)
+document.getElementById('modal')?.addEventListener('click', (e) => {
+  if (e.target.closest('.close') || e.target.closest('.modal-close-btn')) {
+    document.getElementById('modal').style.display = 'none';
+  }
 });
-
 window.addEventListener('click', (e) => {
   const modal = document.getElementById('modal');
-  if (e.target === modal) {
-    modal.style.display = 'none';
-  }
+  if (e.target === modal) modal.style.display = 'none';
 });
 
 // События — с проверкой существования элементов

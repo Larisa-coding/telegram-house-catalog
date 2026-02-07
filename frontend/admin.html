@@ -58,6 +58,13 @@
     </div>
 
     <div class="admin-card">
+      <h2>Размер фото</h2>
+      <p>Общий объём base64-фото в проектах.</p>
+      <button id="images-stats-btn" class="admin-btn admin-btn-secondary admin-btn-sm">Показать размер</button>
+      <div id="images-stats-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>Сжать загруженные фото</h2>
       <p>Сжать base64-фото в проектах (макс 1200px, JPEG 80%). Уменьшит размер и ускорит загрузку каталога.</p>
       <button id="compress-images-btn" class="admin-btn admin-btn-primary admin-btn-sm">Сжать все фото</button>
@@ -266,6 +273,25 @@
         showMsg(msg, 'Ошибка сети или сервера.', true);
       }
       btn.disabled = false;
+    });
+
+    document.getElementById('images-stats-btn').addEventListener('click', async () => {
+      const msg = document.getElementById('images-stats-msg');
+      msg.textContent = 'Загрузка...';
+      msg.className = 'admin-msg';
+      msg.style.display = 'block';
+      try {
+        const res = await fetch(`${API_URL}/images-stats`);
+        const data = await res.json();
+        if (data.success) {
+          msg.innerHTML = `<strong>${data.totalMB} МБ</strong> (${data.base64Count} фото в ${data.projectsWithImages} проектах)`;
+          msg.className = 'admin-msg success';
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
     });
 
     document.getElementById('compress-images-btn').addEventListener('click', async () => {

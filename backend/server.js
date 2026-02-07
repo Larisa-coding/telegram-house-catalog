@@ -543,6 +543,40 @@ app.post('/api/projects/delete-batch', async (req, res) => {
   }
 });
 
+// GET /api/images-stats — размер фото (base64) в проектах
+app.get('/api/images-stats', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, project_id, name, images FROM projects WHERE images IS NOT NULL');
+    let totalBytes = 0;
+    let base64Count = 0;
+    for (const row of result.rows) {
+      const im = normalizeImages(row.images);
+      const all = [...(im.main || []), ...(im.gallery || [])];
+      for (const s of all) {
+        if (s && typeof s === 'string' && s.startsWith('data:image/')) {
+          const base64Part = s.replace(/^data:image\/\w+;base64,/, '');
+          totalBytes += Math.ceil((base64Part.length * 3) / 4);
+          base64Count += 1;
+        }
+      }
+    }
+    const mb = (totalBytes / 1024 / 1024).toFixed(2);
+    res.json({
+      success: true,
+      totalBytes,
+      totalMB: parseFloat(mb),
+      base64Count,
+      projectsWithImages: result.rows.filter((r) => {
+        const im = normalizeImages(r.images);
+        return [...(im.main || []), ...(im.gallery || [])].some((s) => s && s.startsWith && s.startsWith('data:image/'));
+      }).length,
+    });
+  } catch (error) {
+    console.error('images-stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/compress-images — сжать все base64 фото в проектах (макс 1200px, JPEG 80%)
 app.post('/api/compress-images', async (req, res) => {
   try {

@@ -618,17 +618,28 @@ body {
 
 .close {
   position: absolute;
-  right: 20px;
-  top: 20px;
-  font-size: 32px;
-  font-weight: 300;
-  color: var(--text-light);
+  right: 16px;
+  top: 16px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--text-dark);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
   cursor: pointer;
-  transition: color 0.3s;
+  transition: all 0.2s;
+  z-index: 10;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .close:hover {
-  color: var(--text-dark);
+  background: var(--mint-color);
+  color: white;
 }
 
 .modal-image {
@@ -641,6 +652,26 @@ body {
   padding: 12px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   background: #FBFCFC;
+}
+
+.modal-close-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 1rem;
+  padding: 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: var(--mint-color);
+  color: white;
 }
 
 .modal-name {
