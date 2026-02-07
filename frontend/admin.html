@@ -5,113 +5,95 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Админ — Каталог домов</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    .admin-container { max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
-    .admin-card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; }
-    .admin-card h2 { font-size: 1.25rem; margin-bottom: 1rem; color: var(--text-dark); }
-    .admin-form label { display: block; margin-bottom: 0.35rem; font-weight: 500; }
-    .admin-form input, .admin-form textarea { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--glass-border); border-radius: 8px; margin-bottom: 1rem; font-size: 1rem; }
-    .admin-form textarea { min-height: 100px; resize: vertical; }
-    .admin-form button { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; }
-    .btn-add { background: var(--mint-border); color: #fff; }
-    .btn-add:hover { background: var(--mint-darker); }
-    .btn-batch { background: var(--text-dark); color: #fff; }
-    .btn-batch:hover { opacity: 0.9; }
-    .admin-msg { margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none; }
-    .admin-msg.success { background: rgba(40,167,69,0.15); color: #155724; display: block; }
-    .admin-msg.error { background: rgba(220,53,69,0.15); color: #721c24; display: block; }
-    .admin-link { display: inline-block; margin-top: 1rem; color: var(--mint-border); text-decoration: none; }
-    .admin-link:hover { text-decoration: underline; }
-  </style>
+  <link rel="stylesheet" href="admin.css">
 </head>
-<body>
+<body class="admin-page">
   <div class="admin-container">
-    <h1 style="margin-bottom: 1.5rem;">Админ-панель</h1>
+    <h1>Админ-панель</h1>
 
     <div class="admin-card">
       <h2>Добавить проект по ID</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Введи ID проекта с сайта строим.дом.рф — карточка создастся автоматически (название, площадь, фото, описание).</p>
+      <p>Введи ID проекта с сайта строим.дом.рф — карточка создастся автоматически.</p>
       <form id="add-one-form" class="admin-form">
-        <label for="project-id">ID проекта (строим.дом.рф)</label>
-        <input type="text" id="project-id" name="projectId" placeholder="Например: 77279" required inputmode="numeric" pattern="[0-9]+">
-        <button type="submit" class="btn-add" id="add-one-btn">Добавить проект</button>
+        <label for="project-id">ID проекта</label>
+        <input type="text" id="project-id" placeholder="Например: 77279" inputmode="numeric" pattern="[0-9]+">
+        <button type="submit" class="admin-btn admin-btn-primary" id="add-one-btn">Добавить проект</button>
       </form>
       <div id="add-one-msg" class="admin-msg" role="status"></div>
     </div>
 
     <div class="admin-card">
       <h2>Заполнить каталог по списку ID</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Несколько ID через запятую — все проекты подтянутся с строим.дом.рф и появятся в каталоге.</p>
+      <p>Несколько ID через запятую — все проекты подтянутся с строим.дом.рф.</p>
       <form id="batch-form" class="admin-form">
         <label for="project-ids">ID через запятую</label>
-        <textarea id="project-ids" name="projectIds" placeholder="77279, 12345, 67890"></textarea>
-        <button type="submit" class="btn-batch" id="batch-btn">Заполнить каталог</button>
+        <textarea id="project-ids" placeholder="77279, 12345, 67890"></textarea>
+        <button type="submit" class="admin-btn admin-btn-primary" id="batch-btn">Заполнить каталог</button>
       </form>
       <div id="batch-msg" class="admin-msg" role="status"></div>
     </div>
 
     <div class="admin-card">
       <h2>Список проектов</h2>
-      <button id="load-projects-btn" class="btn-batch" style="margin-bottom: 1rem;">Загрузить список</button>
-      <div id="projects-list" style="max-height: 300px; overflow-y: auto; font-size: 0.9rem;"></div>
-    </div>
-
-    <div class="admin-card" id="edit-project-card" style="display: none;">
-      <h2>Редактировать проект <span id="edit-project-name"></span></h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Добавь фото с компьютера — они сохранятся в БД и будут отображаться в приложении.</p>
-      <div class="admin-form">
-        <label>Добавить фото</label>
-        <input type="file" id="edit-photos-input" accept="image/*" multiple>
-        <button type="button" id="edit-add-photos-btn" class="btn-add" style="margin-top: 0.5rem;">Добавить выбранные фото</button>
-      </div>
-      <div id="edit-project-preview" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;"></div>
-      <div id="edit-project-msg" class="admin-msg" role="status"></div>
-      <button type="button" id="edit-close-btn" class="btn-batch" style="margin-top: 1rem;">Закрыть</button>
+      <p>Загрузи список и редактируй фото каждого проекта.</p>
+      <button id="load-projects-btn" class="admin-btn admin-btn-secondary">Загрузить список</button>
+      <div id="projects-list" class="admin-table-wrap" style="margin-top: 1rem;"></div>
     </div>
 
     <div class="admin-card">
-      <h2>Удалить лишние проекты</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">ID или названия — проекты будут удалены из каталога.</p>
+      <h2>Удалить проекты</h2>
+      <p>По ID или по названию.</p>
       <form id="delete-batch-form" class="admin-form">
         <label for="delete-project-ids">ID проектов (через запятую)</label>
-        <input type="text" id="delete-project-ids" name="projectIds" placeholder="20113, 12345, 67890">
-        <button type="submit" class="btn-batch" id="delete-batch-btn" style="background: #721c24;">Удалить по ID</button>
+        <input type="text" id="delete-project-ids" placeholder="20113, 12345">
+        <button type="submit" class="admin-btn admin-btn-danger admin-btn-sm">Удалить по ID</button>
       </form>
       <div id="delete-batch-msg" class="admin-msg" role="status"></div>
       <form id="delete-by-names-form" class="admin-form" style="margin-top: 1.5rem;">
-        <label for="delete-names">Или по названию (каждое с новой строки или через запятую)</label>
-        <textarea id="delete-names" name="names" rows="6" placeholder="Империал с гаражом&#10;Микея 3&#10;Фаворит 6х9&#10;МОДЕРН 105">Империал с гаражом
-Микея 3
-Фаворит 6х9 П6-1
-МОДЕРН 105
-Загородный дом Ш-01.24
-Декарт
-Дания Комсомольский
-Lotus ВФ
-фасад силикатный кирпич
-каркасной технологии кд150</textarea>
-        <button type="submit" class="btn-batch" id="delete-by-names-btn" style="background: #721c24;">Удалить по названию</button>
+        <label for="delete-names">Или по названию (каждое с новой строки)</label>
+        <textarea id="delete-names" rows="4" placeholder="Название проекта 1&#10;Название проекта 2"></textarea>
+        <button type="submit" class="admin-btn admin-btn-danger admin-btn-sm">Удалить по названию</button>
       </form>
       <div id="delete-by-names-msg" class="admin-msg" role="status"></div>
     </div>
 
     <div class="admin-card">
       <h2>Обновить проекты</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">Перепарсить все проекты с строим.дом.рф — фото домов, планировки, материал (брус/газобетон). Занимает 2–5 мин.</p>
-      <button id="reparse-materials-btn" class="btn-batch">Обновить все проекты</button>
+      <p>Перепарсить все проекты с строим.дом.рф — фото, планировки, материал. Занимает 2–5 мин.</p>
+      <button id="reparse-materials-btn" class="admin-btn admin-btn-secondary">Обновить все проекты</button>
       <div id="reparse-materials-msg" class="admin-msg" role="status"></div>
     </div>
 
     <div class="admin-card">
       <h2>База пользователей</h2>
-      <button id="load-users-btn" class="btn-batch" style="margin-bottom: 1rem;">Обновить список</button>
-      <div id="users-list" style="max-height: 400px; overflow-y: auto;">
-        <p style="color: var(--text-light);">Нажмите «Обновить список» для загрузки пользователей</p>
-      </div>
+      <button id="load-users-btn" class="admin-btn admin-btn-secondary">Обновить список</button>
+      <div id="users-list" style="margin-top: 1rem;"></div>
     </div>
 
     <a href="index.html" class="admin-link">← Вернуться в каталог</a>
   </div>
+
+  <!-- Модалка редактирования фото -->
+  <div class="edit-photo-modal" id="edit-photo-modal" style="display: none;">
+    <div class="edit-photo-content">
+      <h2>Фото проекта <span id="edit-project-name"></span></h2>
+      <p class="photo-count" id="edit-photo-count">0 фото</p>
+
+      <h3>Текущие фото</h3>
+      <div id="edit-photos-grid" class="photos-grid"></div>
+
+      <h3>Добавить фото</h3>
+      <label class="upload-zone" for="edit-photos-input">
+        <span>Выбери файлы или перетащи сюда</span>
+        <input type="file" id="edit-photos-input" accept="image/*" multiple>
+      </label>
+      <button type="button" id="edit-add-photos-btn" class="admin-btn admin-btn-primary" style="margin-top: 0.75rem; display: none;">Добавить выбранные</button>
+
+      <div id="edit-project-msg" class="admin-msg" role="status"></div>
+      <button type="button" id="edit-close-btn" class="admin-btn admin-btn-secondary" style="margin-top: 1.5rem;">Закрыть</button>
+    </div>
+  </div>
+
   <script>
     const API_URL = (window.location.origin || 'http://localhost:3000').replace(/\/$/, '') + '/api';
 
@@ -136,7 +118,7 @@ Lotus ВФ
         const res = await fetch(`${API_URL}/parse/${id}`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          showMsg(msg, data.message === 'Project updated' ? 'Проект обновлён.' : 'Проект добавлен в каталог.');
+          showMsg(msg, data.message === 'Project updated' ? 'Проект обновлён.' : 'Проект добавлен.');
         } else {
           showMsg(msg, data.error || 'Ошибка добавления.', true);
         }
@@ -166,8 +148,7 @@ Lotus ВФ
         });
         const data = await res.json();
         if (data.success) {
-          const text = `Добавлено: ${data.created}, обновлено: ${data.updated}.${data.failed?.length ? ' Не найдены: ' + data.failed.join(', ') : ''}`;
-          showMsg(msg, text, data.failed?.length > 0);
+          showMsg(msg, `Добавлено: ${data.created}, обновлено: ${data.updated}.${data.failed?.length ? ' Не найдены: ' + data.failed.join(', ') : ''}`, data.failed?.length > 0);
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
         }
@@ -179,50 +160,40 @@ Lotus ВФ
 
     const loadUsers = async () => {
       const list = document.getElementById('users-list');
-      list.innerHTML = '<p style="color: var(--text-light);">Загрузка...</p>';
+      list.innerHTML = '<p style="color:#64748b;">Загрузка...</p>';
       try {
         const res = await fetch(`${API_URL}/users`);
         const data = await res.json();
         if (data.success && data.data.length > 0) {
-          const html = `
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-              <thead>
-                <tr style="background: var(--glass-border); text-align: left;">
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">ID</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Никнейм</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Имя</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Первое посещение</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Последнее посещение</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Визитов</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${data.data.map(u => `
-                  <tr style="border-bottom: 1px solid var(--glass-border);">
-                    <td style="padding: 0.5rem;">${u.telegram_id}</td>
-                    <td style="padding: 0.5rem;">${u.username || '-'}</td>
-                    <td style="padding: 0.5rem;">${[u.first_name, u.last_name].filter(Boolean).join(' ') || '-'}</td>
-                    <td style="padding: 0.5rem; font-size: 0.85rem;">${u.first_visit ? new Date(u.first_visit).toLocaleString('ru-RU') : '-'}</td>
-                    <td style="padding: 0.5rem; font-size: 0.85rem;">${u.last_visit ? new Date(u.last_visit).toLocaleString('ru-RU') : '-'}</td>
-                    <td style="padding: 0.5rem; text-align: center;">${u.visit_count || 0}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+          list.innerHTML = `
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead><tr><th>ID</th><th>Ник</th><th>Имя</th><th>Визитов</th></tr></thead>
+                <tbody>
+                  ${data.data.map(u => `
+                    <tr>
+                      <td>${u.telegram_id}</td>
+                      <td>${u.username || '-'}</td>
+                      <td>${[u.first_name, u.last_name].filter(Boolean).join(' ') || '-'}</td>
+                      <td>${u.visit_count || 0}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
           `;
-          list.innerHTML = html;
         } else {
-          list.innerHTML = '<p style="color: var(--text-light);">Пользователей пока нет</p>';
+          list.innerHTML = '<p style="color:#64748b;">Пользователей пока нет</p>';
         }
       } catch (err) {
-        list.innerHTML = '<p style="color: #721c24;">Ошибка загрузки пользователей</p>';
+        list.innerHTML = '<p style="color:#b91c1c;">Ошибка загрузки</p>';
       }
     };
 
     document.getElementById('delete-batch-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const raw = document.getElementById('delete-project-ids').value.trim();
-      const ids = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean).map((s) => parseInt(s.replace(/\D/g, ''))).filter((n) => !isNaN(n));
+      const ids = raw.split(/[\s,]+/).map(s => parseInt(s.replace(/\D/g, ''))).filter(n => !isNaN(n));
       const btn = document.getElementById('delete-batch-btn');
       const msg = document.getElementById('delete-batch-msg');
       if (ids.length === 0) {
@@ -253,7 +224,7 @@ Lotus ВФ
     document.getElementById('delete-by-names-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const raw = document.getElementById('delete-names').value.trim();
-      const names = raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      const names = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
       const btn = document.getElementById('delete-by-names-btn');
       const msg = document.getElementById('delete-by-names-msg');
       if (names.length === 0) {
@@ -292,7 +263,7 @@ Lotus ВФ
         const res = await fetch(`${API_URL}/reparse-materials`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          showMsg(msg, data.message || `Обновление запущено для ${data.started || 0} проектов. Подождите 2–5 мин, обновите каталог.`);
+          showMsg(msg, data.message || 'Обновление запущено.');
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
         }
@@ -304,40 +275,35 @@ Lotus ВФ
 
     const loadProjects = async () => {
       const list = document.getElementById('projects-list');
-      list.innerHTML = '<p style="color: var(--text-light);">Загрузка...</p>';
+      list.innerHTML = '<p style="color:#64748b;">Загрузка...</p>';
       try {
         const res = await fetch(`${API_URL}/projects?limit=500`);
         const data = await res.json();
         if (data.success && data.data?.length > 0) {
-          const html = `
-            <table style="width: 100%; border-collapse: collapse;">
+          list.innerHTML = `
+            <table class="admin-table">
               <thead>
-                <tr style="background: var(--glass-border); text-align: left;">
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">project_id</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);">Название</th>
-                  <th style="padding: 0.5rem; border-bottom: 1px solid var(--glass-border);"></th>
-                </tr>
+                <tr><th>ID</th><th>Название</th><th></th></tr>
               </thead>
               <tbody>
                 ${data.data.map((p) => `
-                  <tr style="border-bottom: 1px solid var(--glass-border);">
-                    <td style="padding: 0.5rem;">${p.project_id}</td>
-                    <td style="padding: 0.5rem;">${(p.name || '-').substring(0, 50)}</td>
-                    <td style="padding: 0.5rem;">
-                      <button type="button" class="btn-add edit-photo-btn" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; margin-right: 0.25rem;" data-id="${p.project_id}" data-name="${(p.name || '-').replace(/"/g, '&quot;').substring(0, 50)}">Фото</button>
-                      <button type="button" class="btn-batch" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" onclick="deleteProject(${p.project_id}, this)">Удалить</button>
+                  <tr>
+                    <td>${p.project_id}</td>
+                    <td>${(p.name || '-').substring(0, 45)}</td>
+                    <td>
+                      <button type="button" class="admin-btn admin-btn-primary admin-btn-sm edit-photo-btn" data-id="${p.project_id}" data-name="${(p.name || '-').replace(/"/g, '&quot;').substring(0, 50)}">Фото</button>
+                      <button type="button" class="admin-btn admin-btn-danger admin-btn-sm" onclick="deleteProject(${p.project_id}, this)">Удалить</button>
                     </td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
           `;
-          list.innerHTML = html;
         } else {
-          list.innerHTML = '<p style="color: var(--text-light);">Проектов нет</p>';
+          list.innerHTML = '<p style="color:#64748b;">Проектов нет</p>';
         }
       } catch (err) {
-        list.innerHTML = '<p style="color: #721c24;">Ошибка загрузки</p>';
+        list.innerHTML = '<p style="color:#b91c1c;">Ошибка загрузки</p>';
       }
     };
 
@@ -356,32 +322,90 @@ Lotus ВФ
     };
 
     let currentEditProjectId = null;
+    let currentEditImages = [];
+
+    const renderPhotosGrid = () => {
+      const grid = document.getElementById('edit-photos-grid');
+      document.getElementById('edit-photo-count').textContent = `${currentEditImages.length} фото`;
+      grid.innerHTML = currentEditImages.map((src, i) => {
+        const isData = src.startsWith('data:');
+        return `
+          <div class="photo-item">
+            <img src="${isData ? src : 'https://wsrv.nl/?url=' + encodeURIComponent(src)}" alt="" onerror="this.style.background='#f1f5f9';this.alt='Не загружается'">
+            <button type="button" class="photo-remove" data-index="${i}" title="Удалить">×</button>
+          </div>
+        `;
+      }).join('');
+      grid.querySelectorAll('.photo-remove').forEach((b) => {
+        b.addEventListener('click', async () => {
+          const idx = parseInt(b.dataset.index, 10);
+          const res = await fetch(`${API_URL}/projects/${currentEditProjectId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ removeImageAtIndex: idx }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            currentEditImages.splice(idx, 1);
+            renderPhotosGrid();
+            showMsg(document.getElementById('edit-project-msg'), 'Фото удалено.', false);
+          } else {
+            showMsg(document.getElementById('edit-project-msg'), data.error || 'Ошибка удаления.', true);
+          }
+        });
+      });
+    };
+
+    const openEditModal = async (projectId, projectName) => {
+      currentEditProjectId = projectId;
+      document.getElementById('edit-project-name').textContent = projectName || projectId;
+      document.getElementById('edit-photos-input').value = '';
+      document.getElementById('edit-add-photos-btn').style.display = 'none';
+      document.getElementById('edit-project-msg').style.display = 'none';
+      document.getElementById('edit-photo-modal').style.display = 'flex';
+
+      const res = await fetch(`${API_URL}/projects/${projectId}`);
+      const data = await res.json();
+      if (data.success) {
+        currentEditImages = Array.isArray(data.data.images) ? [...data.data.images] : [];
+        renderPhotosGrid();
+      } else {
+        currentEditImages = [];
+        renderPhotosGrid();
+      }
+    };
+
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.edit-photo-btn');
-      if (btn) {
-        currentEditProjectId = parseInt(btn.dataset.id, 10);
-        const projectName = btn.dataset.name || currentEditProjectId;
-      document.getElementById('edit-project-name').textContent = projectName;
-      document.getElementById('edit-project-card').style.display = 'block';
-      document.getElementById('edit-photos-input').value = '';
-      document.getElementById('edit-project-msg').style.display = 'none';
-      document.getElementById('edit-project-preview').innerHTML = '';
-      }
+      if (btn) openEditModal(parseInt(btn.dataset.id, 10), btn.dataset.name);
     });
 
     document.getElementById('edit-close-btn').addEventListener('click', () => {
-      document.getElementById('edit-project-card').style.display = 'none';
+      document.getElementById('edit-photo-modal').style.display = 'none';
       currentEditProjectId = null;
+    });
+
+    const uploadZone = document.querySelector('.upload-zone');
+    const photosInput = document.getElementById('edit-photos-input');
+    photosInput.addEventListener('change', (e) => {
+      document.getElementById('edit-add-photos-btn').style.display = (e.target.files?.length > 0) ? 'inline-flex' : 'none';
+    });
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      if (e.dataTransfer.files?.length) {
+        photosInput.files = e.dataTransfer.files;
+        document.getElementById('edit-add-photos-btn').style.display = 'inline-flex';
+      }
     });
 
     document.getElementById('edit-add-photos-btn').addEventListener('click', async () => {
       const input = document.getElementById('edit-photos-input');
       const msg = document.getElementById('edit-project-msg');
       const btn = document.getElementById('edit-add-photos-btn');
-      if (!currentEditProjectId || !input.files || input.files.length === 0) {
-        showMsg(msg, 'Выберите хотя бы одно фото.', true);
-        return;
-      }
+      if (!currentEditProjectId || !input.files || input.files.length === 0) return;
       btn.disabled = true;
       msg.style.display = 'none';
       const files = Array.from(input.files);
@@ -396,7 +420,7 @@ Lotus ВФ
         if (dataUrl.length < 800000) dataUrls.push(dataUrl);
       }
       if (dataUrls.length === 0) {
-        showMsg(msg, 'Нет подходящих фото (только jpg/png, до 800 КБ каждое).', true);
+        showMsg(msg, 'Нет подходящих фото (jpg/png, до 800 КБ).', true);
         btn.disabled = false;
         return;
       }
@@ -408,18 +432,13 @@ Lotus ВФ
         });
         const data = await res.json();
         if (data.success) {
-          showMsg(msg, `Добавлено ${dataUrls.length} фото. Всего: ${(data.data?.images || dataUrls.length)}`);
+          const added = data.data?.added ?? dataUrls.length;
+          const total = data.data?.total ?? (currentEditImages.length + dataUrls.length);
+          currentEditImages = [...currentEditImages, ...dataUrls];
+          renderPhotosGrid();
+          showMsg(msg, `Добавлено ${added} фото. Всего: ${total}`, false);
           input.value = '';
-          const preview = document.getElementById('edit-project-preview');
-          dataUrls.forEach((u) => {
-            const img = document.createElement('img');
-            img.src = u;
-            img.style.width = '80px';
-            img.style.height = '60px';
-            img.style.objectFit = 'cover';
-            img.style.borderRadius = '4px';
-            preview.appendChild(img);
-          });
+          document.getElementById('edit-add-photos-btn').style.display = 'none';
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
         }

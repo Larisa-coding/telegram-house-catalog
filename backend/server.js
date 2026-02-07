@@ -404,11 +404,12 @@ app.post('/api/parse-batch', async (req, res) => {
   }
 });
 
-// PATCH /api/projects/:id — обновить проект (images, floor_plans). images — массив URL или data:base64
+// PATCH /api/projects/:id — обновить проект (images, floor_plans)
+// appendImages: string[] — добавить base64; removeImageAtIndex: number — удалить по индексу; images: string[] — заменить весь массив
 app.patch('/api/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const { images, floor_plans, appendImages } = req.body || {};
+    const { images, floor_plans, appendImages, removeImageAtIndex } = req.body || {};
     const row = await pool.query(
       'SELECT id, project_id, images, floor_plans FROM projects WHERE id = $1 OR project_id = $1',
       [id]
@@ -417,20 +418,34 @@ app.patch('/api/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Проект не найден' });
     }
     const project = row.rows[0];
-    let newImages = project.images || [];
-    let newPlans = project.floor_plans || [];
-    if (Array.isArray(images)) newImages = images;
-    if (Array.isArray(appendImages) && appendImages.length > 0) {
-      const maxSize = 800000;
-      const valid = appendImages.filter((s) => typeof s === 'string' && s.startsWith('data:image/') && s.length < maxSize);
-      newImages = [...newImages, ...valid];
+    let newImages = Array.isArray(project.images) ? [...project.images] : [];
+    let newPlans = Array.isArray(project.floor_plans) ? [...project.floor_plans] : [];
+    let addedCount = 0;
+
+    if (Array.isArray(images)) {
+      newImages = images;
+    } else {
+      if (typeof removeImageAtIndex === 'number' && removeImageAtIndex >= 0 && removeImageAtIndex < newImages.length) {
+        newImages.splice(removeImageAtIndex, 1);
+      }
+      if (Array.isArray(appendImages) && appendImages.length > 0) {
+        const maxSize = 800000;
+        const valid = appendImages.filter((s) => typeof s === 'string' && s.startsWith('data:image/') && s.length < maxSize);
+        addedCount = valid.length;
+        newImages = [...newImages, ...valid];
+      }
     }
     if (Array.isArray(floor_plans)) newPlans = floor_plans;
+
     await pool.query(
       'UPDATE projects SET images = $1, floor_plans = $2 WHERE id = $3',
       [JSON.stringify(newImages), JSON.stringify(newPlans), project.id]
     );
-    res.json({ success: true, message: 'Проект обновлён', data: { images: newImages.length, floor_plans: newPlans.length } });
+    res.json({
+      success: true,
+      message: 'Проект обновлён',
+      data: { added: addedCount, total: newImages.length, floor_plans: newPlans.length },
+    });
   } catch (error) {
     console.error('Error updating project:', error);
     res.status(500).json({ success: false, error: error.message });
