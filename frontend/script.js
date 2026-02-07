@@ -257,7 +257,7 @@ const showResultsCount = (count, hasFilters) => {
 const getFilters = () => {
   const filters = {};
   
-  const material = document.getElementById('material-filter').value;
+  const material = document.getElementById('material-filter')?.value;
   if (material) filters.material = material;
 
   const minArea = document.getElementById('min-area')?.value;
@@ -561,19 +561,6 @@ safeAddListener('max-area', 'input', updateAreaValue);
 safeAddListener('apply-filters', 'click', () => loadProjects(true));
 safeAddListener('reset-filters', 'click', resetFilters);
 safeAddListener('load-more', 'click', () => loadProjects(false));
-
-// Debounce функция
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
 
 // Фильтры теперь работают через checkbox+label (чистый HTML/CSS)
 

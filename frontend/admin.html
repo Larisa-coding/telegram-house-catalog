@@ -46,13 +46,13 @@
       <form id="delete-batch-form" class="admin-form">
         <label for="delete-project-ids">ID проектов (через запятую)</label>
         <input type="text" id="delete-project-ids" placeholder="20113, 12345">
-        <button type="submit" class="admin-btn admin-btn-danger admin-btn-sm">Удалить по ID</button>
+        <button type="submit" class="admin-btn admin-btn-danger admin-btn-sm" id="delete-batch-btn">Удалить по ID</button>
       </form>
       <div id="delete-batch-msg" class="admin-msg" role="status"></div>
       <form id="delete-by-names-form" class="admin-form" style="margin-top: 1.5rem;">
         <label for="delete-names">Или по названию (каждое с новой строки)</label>
         <textarea id="delete-names" rows="4" placeholder="Название проекта 1&#10;Название проекта 2"></textarea>
-        <button type="submit" class="admin-btn admin-btn-danger admin-btn-sm">Удалить по названию</button>
+        <button type="submit" class="admin-btn admin-btn-danger admin-btn-sm" id="delete-by-names-btn">Удалить по названию</button>
       </form>
       <div id="delete-by-names-msg" class="admin-msg" role="status"></div>
     </div>

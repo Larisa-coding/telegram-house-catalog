@@ -111,8 +111,14 @@ app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(frontendDir, 'admin.html'));
 });
 
-// Инициализация БД при старте
-initDB().catch(console.error);
+// Инициализация БД — ждём перед приёмом запросов
+const startServer = async () => {
+  try {
+    await initDB();
+  } catch (e) {
+    console.error('DB init failed:', e);
+    process.exit(1);
+  }
 
 // Telegram bot init (polling локально, webhook на Railway если задан PUBLIC_BASE_URL)
 let bot = null;
@@ -184,11 +190,17 @@ app.get('/api/projects', async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    const projects = result.rows.map((project) => ({
-      ...project,
-      images: normalizeImages(project.images),
-      formatted_description: generateDescription(project),
-    }));
+    const norm = (im) => normalizeImages(im);
+    const projects = result.rows.map((project) => {
+      const im = norm(project.images);
+      const firstImg = (im.main && im.main[0]) || (im.gallery && im.gallery[0]);
+      const coverOnly = firstImg ? { main: [firstImg], gallery: [] } : { main: [], gallery: [] };
+      return {
+        ...project,
+        images: coverOnly,
+        formatted_description: generateDescription(project),
+      };
+    });
 
     res.json({
       success: true,
@@ -435,7 +447,8 @@ app.patch('/api/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Проект не найден' });
     }
     const project = row.rows[0];
-    let newImages = Array.isArray(project.images) ? [...project.images] : [];
+    const norm = normalizeImages(project.images);
+    let newImages = [...norm.main, ...norm.gallery];
     let newPlans = Array.isArray(project.floor_plans) ? [...project.floor_plans] : [];
     let addedCount = 0;
 
@@ -635,9 +648,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  if (process.env.TELEGRAM_BOT_TOKEN) {
-    console.log('Telegram bot is active');
-  }
-});
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+      console.log('Telegram bot is active');
+    }
+  });
+};
+startServer().catch(console.error);
