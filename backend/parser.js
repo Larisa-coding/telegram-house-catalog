@@ -4,14 +4,16 @@ require('dotenv').config();
 
 const CONTRACTOR_ID = process.env.CONTRACTOR_ID || '9465';
 const BASE_URL = process.env.BASE_URL || 'https://строим.дом.рф';
-// Punycode: xn--80az8a = строим.дом.рф, xn--80aakn = наш.дом.рф (наш.дом.рф отдаёт картинки)
-const RESIZER_BASE = 'https://xn--80aakn.xn--d1aqf.xn--p1ai/resizer/v2/image';
+// Punycode: xn--80az8a = наш.дом.рф, xn--h1aieheg = строим.дом.рф (наш.дом.рф отдаёт картинки)
+const RESIZER_BASE = 'https://xn--80az8a.xn--d1aqf.xn--p1ai/resizer/v2/image';
 
-/** Формат как на наш.дом.рф — extend=true, dpr=1, width=1032 (рабочий URL из галереи) */
+/** Формат как на наш.дом.рф — path%2FfullHex, extend=true, dpr=1 (рабочий URL из галереи) */
 const buildResizerUrl = (hex, opts = {}) => {
   const w = opts.width ?? 1032;
   const q = opts.quality ?? 80;
-  const imageUrl = (hex.match(/.{2}/g) || []).join('%2F');
+  const cleanHex = String(hex).replace(/[^0-9A-Fa-f]/g, '');
+  const pathPart = (cleanHex.match(/.{2}/g) || []).join('%2F');
+  const imageUrl = pathPart + '%2F' + cleanHex;
   return `${RESIZER_BASE}?dpr=1&enlarge=true&extend=true&height=0&imageUrl=${imageUrl}&quality=${q}&resizeType=fill&systemClientId=igs-client&width=${w}`;
 };
 

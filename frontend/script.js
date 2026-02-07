@@ -8,14 +8,14 @@ const getApiBase = () => {
 };
 const API_URL = getApiBase() + '/api';
 
-// wsrv.nl — внешний image proxy (дом.рф блокирует прямые запросы из приложения)
-const IMG_PROXY = 'https://wsrv.nl';
+// дом.рф — используем наш backend proxy (Telegram/wsrv.nl блокируются)
 const toImgUrl = (url) => {
   if (!url || !url.startsWith('http')) return url;
-  const needsProxy = url.includes('xn--80az8a') || url.includes('xn--80aakn') ||
+  const needsProxy = url.includes('xn--80az8a') || url.includes('xn--h1aieheg') ||
     url.includes('строим.дом') || url.includes('наш.дом');
   if (needsProxy) {
-    return `${IMG_PROXY}/?url=${encodeURIComponent(url)}`;
+    const base = getApiBase();
+    return base ? `${base}/api/proxy-image?url=${encodeURIComponent(url)}` : url;
   }
   return url;
 };
