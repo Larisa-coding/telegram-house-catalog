@@ -13,7 +13,7 @@ const frontendDir = path.join(__dirname, '../frontend');
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 app.use(express.static(frontendDir));
 
 // GET /api/proxy-image?url=... — прокси изображений (обход CORS/блокировки для наш.дом.рф)
@@ -429,7 +429,7 @@ app.patch('/api/projects/:id', async (req, res) => {
         newImages.splice(removeImageAtIndex, 1);
       }
       if (Array.isArray(appendImages) && appendImages.length > 0) {
-        const maxSize = 800000;
+        const maxSize = 1500000;
         const valid = appendImages.filter((s) => typeof s === 'string' && s.startsWith('data:image/') && s.length < maxSize);
         addedCount = valid.length;
         newImages = [...newImages, ...valid];

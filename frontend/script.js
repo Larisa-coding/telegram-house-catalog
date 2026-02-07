@@ -317,7 +317,7 @@ const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
-  const imageUrl = firstImg && firstImg.startsWith('http') ? toImgUrl(firstImg) : 'https://via.placeholder.com/400x300?text=Дом';
+  const imageUrl = firstImg ? toImgUrl(firstImg) : 'https://via.placeholder.com/400x300?text=Дом';
   const fallbackUrl = firstImg ? getProxyFallbackUrl(firstImg) : null;
   
   const specs = [];

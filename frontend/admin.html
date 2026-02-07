@@ -168,13 +168,15 @@
           list.innerHTML = `
             <div class="admin-table-wrap">
               <table class="admin-table">
-                <thead><tr><th>ID</th><th>Ник</th><th>Имя</th><th>Визитов</th></tr></thead>
+                <thead><tr><th>ID</th><th>Ник</th><th>Имя</th><th>Первое посещение</th><th>Последнее посещение</th><th>Визитов</th></tr></thead>
                 <tbody>
                   ${data.data.map(u => `
                     <tr>
                       <td>${u.telegram_id}</td>
                       <td>${u.username || '-'}</td>
                       <td>${[u.first_name, u.last_name].filter(Boolean).join(' ') || '-'}</td>
+                      <td>${u.first_visit ? new Date(u.first_visit).toLocaleString('ru-RU') : '-'}</td>
+                      <td>${u.last_visit ? new Date(u.last_visit).toLocaleString('ru-RU') : '-'}</td>
                       <td>${u.visit_count || 0}</td>
                     </tr>
                   `).join('')}
@@ -408,39 +410,46 @@
       if (!currentEditProjectId || !input.files || input.files.length === 0) return;
       btn.disabled = true;
       msg.style.display = 'none';
-      const files = Array.from(input.files);
+      const files = Array.from(input.files).filter((f) => f.type.startsWith('image/'));
       const dataUrls = [];
       for (const f of files) {
-        if (!f.type.startsWith('image/')) continue;
         const dataUrl = await new Promise((resolve) => {
           const r = new FileReader();
           r.onload = () => resolve(r.result);
           r.readAsDataURL(f);
         });
-        if (dataUrl.length < 800000) dataUrls.push(dataUrl);
+        if (dataUrl.length < 1500000) dataUrls.push(dataUrl);
       }
       if (dataUrls.length === 0) {
-        showMsg(msg, 'Нет подходящих фото (jpg/png, до 800 КБ).', true);
+        showMsg(msg, 'Нет подходящих фото (jpg/png, до 1.1 МБ каждое).', true);
         btn.disabled = false;
         return;
       }
+      let added = 0;
       try {
-        const res = await fetch(`${API_URL}/projects/${currentEditProjectId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appendImages: dataUrls }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          const added = data.data?.added ?? dataUrls.length;
-          const total = data.data?.total ?? (currentEditImages.length + dataUrls.length);
-          currentEditImages = [...currentEditImages, ...dataUrls];
-          renderPhotosGrid();
-          showMsg(msg, `Добавлено ${added} фото. Всего: ${total}`, false);
+        for (let i = 0; i < dataUrls.length; i++) {
+          const res = await fetch(`${API_URL}/projects/${currentEditProjectId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ appendImages: [dataUrls[i]] }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            added++;
+            currentEditImages = [...currentEditImages, dataUrls[i]];
+            renderPhotosGrid();
+            msg.textContent = `Добавлено ${added}/${dataUrls.length}...`;
+            msg.className = 'admin-msg success';
+            msg.style.display = 'block';
+          } else {
+            showMsg(msg, data.error || `Ошибка при добавлении фото ${i + 1}.`, true);
+            break;
+          }
+        }
+        if (added === dataUrls.length) {
+          showMsg(msg, `Добавлено ${added} фото. Всего: ${currentEditImages.length}`, false);
           input.value = '';
           document.getElementById('edit-add-photos-btn').style.display = 'none';
-        } else {
-          showMsg(msg, data.error || 'Ошибка.', true);
         }
       } catch (err) {
         showMsg(msg, 'Ошибка сети или сервера.', true);
