@@ -16,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(frontendDir));
 
-// GET /api/proxy-image?url=... — прокси изображений (обход CORS для дом.рф)
+// GET /api/proxy-image?url=... — прокси изображений (обход CORS/блокировки для наш.дом.рф)
 app.get('/api/proxy-image', async (req, res) => {
   try {
     const rawUrl = req.query.url;
@@ -27,31 +27,40 @@ app.get('/api/proxy-image', async (req, res) => {
     if (!url.startsWith('https://') && !url.startsWith('http://')) {
       return res.status(400).json({ error: 'Invalid url' });
     }
-    // Referer/Origin совпадают с доменом: xn--80az8a=наш.дом.рф, xn--h1aieheg=строим.дом.рф
-    const isNash = url.includes('xn--80az8a');
-    const isStroim = url.includes('xn--h1aieheg');
-    const host = isNash ? 'xn--80az8a.xn--d1aqf.xn--p1ai' : (isStroim ? 'xn--h1aieheg.xn--d1aqf.xn--p1ai' : 'xn--80az8a.xn--d1aqf.xn--p1ai');
+    const isNash = url.includes('xn--80az8a') || url.includes('наш.дом.рф');
+    let result = null;
+    // Сначала пробуем axios
+    const host = isNash ? 'xn--80az8a.xn--d1aqf.xn--p1ai' : (url.includes('xn--h1aieheg') ? 'xn--h1aieheg.xn--d1aqf.xn--p1ai' : 'xn--80az8a.xn--d1aqf.xn--p1ai');
     const referer = `https://${host}/`;
-    const origin = `https://${host}`;
     const resp = await axios.get(url, {
       responseType: 'stream',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Referer': referer,
-        'Origin': origin,
+        'Origin': `https://${host}`,
       },
       timeout: 20000,
       validateStatus: () => true,
     });
-    if (resp.status !== 200) {
-      console.error('proxy-image:', url.slice(0, 80), '->', resp.status);
-      return res.status(502).json({ error: 'Proxy error' });
+    if (resp.status === 200) {
+      const ct = resp.headers['content-type'] || 'image/jpeg';
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.set('Content-Type', ct);
+      return resp.data.pipe(res);
     }
-    const ct = resp.headers['content-type'] || 'image/jpeg';
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.set('Content-Type', ct);
-    resp.data.pipe(res);
+    // наш.дом.рф возвращает 502/500 — используем Puppeteer (реальный Chrome)
+    if (isNash) {
+      const { fetchImage } = require('./lib/puppeteer-fetch');
+      const data = await fetchImage(url);
+      if (data) {
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.set('Content-Type', data.contentType);
+        return res.send(data.buffer);
+      }
+    }
+    console.error('proxy-image:', url.slice(0, 80), '->', resp.status || 'puppeteer failed');
+    res.status(502).json({ error: 'Proxy error' });
   } catch (e) {
     console.error('proxy-image:', e.message);
     res.status(502).json({ error: 'Proxy error' });
