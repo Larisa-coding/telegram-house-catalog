@@ -477,18 +477,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const TELEGRAM_MANAGER = 'larissa_malio';
-const TELEGRAM_AUTO_TEXT = 'Добрый день! ✨ Пишу с вашего классного приложения — хочу обсудить несколько моментов. Подскажете?';
+const TELEGRAM_AUTO_TEXT = 'Здравствуйте! 👋 Пишу из вашего приложения каталога домов — есть несколько вопросов, подскажете?';
 
 const getTelegramLink = (prefillText) => {
   const text = prefillText ? encodeURIComponent(prefillText) : '';
   const base = `https://t.me/${TELEGRAM_MANAGER}`;
   return text ? `${base}?text=${text}` : base;
-};
-
-// tg:// для лучшей работы из WebApp (автозаполнение текста)
-const getTelegramNativeLink = (prefillText) => {
-  const text = prefillText ? `&text=${encodeURIComponent(prefillText)}` : '';
-  return `tg://resolve?domain=${TELEGRAM_MANAGER}${text}`;
 };
 
 // Связаться с менеджером
@@ -591,17 +585,16 @@ const showFavorites = () => {
 // Открыть ссылку на Telegram (с автозаполнением сообщения)
 const openTelegramLink = (prefillText) => {
   const text = prefillText || TELEGRAM_AUTO_TEXT;
+  const link = getTelegramLink(text);
   const tg = window.Telegram?.WebApp;
-  // В WebApp используем tg:// — лучше сохраняет ?text=
-  const link = tg ? getTelegramNativeLink(text) : getTelegramLink(text);
   if (tg?.openTelegramLink) {
     try {
       tg.openTelegramLink(link);
     } catch (e) {
-      window.location.href = getTelegramLink(text);
+      window.location.href = link;
     }
   } else {
-    window.open(getTelegramLink(text), '_blank', 'noopener');
+    window.open(link, '_blank', 'noopener');
   }
 };
 
