@@ -86,7 +86,7 @@
       <h2>Фото проекта <span id="edit-project-name"></span></h2>
       <p class="photo-count" id="edit-photo-count">0 фото</p>
 
-      <h3>Текущие фото</h3>
+      <h3>Текущие фото <span style="font-weight:400;color:#64748b;font-size:0.85rem">(перетащи для смены порядка)</span></h3>
       <div id="edit-photos-grid" class="photos-grid"></div>
 
       <h3>Добавить фото</h3>
@@ -358,12 +358,50 @@
       grid.innerHTML = currentEditImages.map((src, i) => {
         const isData = src.startsWith('data:');
         return `
-          <div class="photo-item">
-            <img src="${isData ? src : 'https://wsrv.nl/?url=' + encodeURIComponent(src)}" alt="" onerror="this.style.background='#f1f5f9';this.alt='Не загружается'">
-            <button type="button" class="photo-remove" data-index="${i}" title="Удалить">×</button>
+          <div class="photo-item" draggable="true" data-index="${i}" title="Перетащи для смены порядка">
+            <img src="${isData ? src : 'https://wsrv.nl/?url=' + encodeURIComponent(src)}" alt="" draggable="false" onerror="this.style.background='#f1f5f9';this.alt='Не загружается'">
+            <button type="button" class="photo-remove" data-index="${i}" title="Удалить" data-no-drag>×</button>
           </div>
         `;
       }).join('');
+      grid.querySelectorAll('.photo-item').forEach((el) => {
+        el.addEventListener('dragstart', (e) => { if (e.target.closest('[data-no-drag]')) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', el.dataset.index); el.classList.add('photo-dragging'); });
+        el.addEventListener('dragend', () => el.classList.remove('photo-dragging'));
+        el.addEventListener('dragover', (e) => { e.preventDefault(); if (el.classList.contains('photo-dragging')) return; el.classList.add('photo-drag-over'); });
+        el.addEventListener('dragleave', () => el.classList.remove('photo-drag-over'));
+        el.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          el.classList.remove('photo-drag-over');
+          const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          const toIdx = parseInt(el.dataset.index, 10);
+          if (fromIdx === toIdx || isNaN(fromIdx) || isNaN(toIdx)) return;
+          const backup = [...currentEditImages];
+          const arr = [...currentEditImages];
+          const [moved] = arr.splice(fromIdx, 1);
+          arr.splice(toIdx, 0, moved);
+          currentEditImages = arr;
+          try {
+            const res = await fetch(`${API_URL}/projects/${currentEditProjectId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ images: arr }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              renderPhotosGrid();
+              showMsg(document.getElementById('edit-project-msg'), 'Порядок обновлён.', false);
+            } else {
+              currentEditImages = backup;
+              renderPhotosGrid();
+              showMsg(document.getElementById('edit-project-msg'), data.error || 'Ошибка.', true);
+            }
+          } catch (err) {
+            currentEditImages = backup;
+            renderPhotosGrid();
+            showMsg(document.getElementById('edit-project-msg'), 'Ошибка сети.', true);
+          }
+        });
+      });
       grid.querySelectorAll('.photo-remove').forEach((b) => {
         b.addEventListener('click', async () => {
           const idx = parseInt(b.dataset.index, 10);

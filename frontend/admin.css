@@ -275,6 +275,20 @@
   opacity: 1;
 }
 
+.photo-item[draggable="true"] {
+  cursor: grab;
+}
+.photo-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+.photo-item.photo-dragging {
+  opacity: 0.5;
+}
+.photo-item.photo-drag-over {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+
 .upload-zone {
   border: 2px dashed #cbd5e1;
   border-radius: 12px;
