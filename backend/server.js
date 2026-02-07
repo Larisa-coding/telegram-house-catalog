@@ -28,8 +28,7 @@ app.get('/api/proxy-image', async (req, res) => {
       return res.status(400).json({ error: 'Invalid url' });
     }
     const isNash = url.includes('xn--80az8a') || url.includes('наш.дом.рф');
-    let result = null;
-    // Сначала пробуем axios
+    // axios proxy (наш.дом.рф может возвращать 502 с datacenter IP)
     const host = isNash ? 'xn--80az8a.xn--d1aqf.xn--p1ai' : (url.includes('xn--h1aieheg') ? 'xn--h1aieheg.xn--d1aqf.xn--p1ai' : 'xn--80az8a.xn--d1aqf.xn--p1ai');
     const referer = `https://${host}/`;
     const resp = await axios.get(url, {
@@ -49,22 +48,7 @@ app.get('/api/proxy-image', async (req, res) => {
       res.set('Content-Type', ct);
       return resp.data.pipe(res);
     }
-    // наш.дом.рф возвращает 502/500 — Puppeteer отключён на Railway (нет Chromium, OOM)
-    const puppeteerEnabled = process.env.DISABLE_PUPPETEER !== '1' && !process.env.RAILWAY_ENVIRONMENT;
-    if (isNash && puppeteerEnabled) {
-      try {
-        const { fetchImage } = require('./lib/puppeteer-fetch');
-        const data = await fetchImage(url);
-        if (data) {
-          res.set('Cache-Control', 'public, max-age=86400');
-          res.set('Content-Type', data.contentType);
-          return res.send(data.buffer);
-        }
-      } catch (e) {
-        console.warn('puppeteer-fetch skipped:', e.message);
-      }
-    }
-    console.error('proxy-image:', url.slice(0, 80), '->', resp.status || 'puppeteer failed');
+    console.error('proxy-image:', url.slice(0, 80), '->', resp.status);
     res.status(502).json({ error: 'Proxy error' });
   } catch (e) {
     console.error('proxy-image:', e.message);
