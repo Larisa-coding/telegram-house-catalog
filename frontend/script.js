@@ -305,11 +305,8 @@ const isTinyThumbnail = (url) => /width=32|width=64|height=32|height=64/.test(ur
 
 const getFirstHouseImage = (images) => {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
-  const filtered = images.filter((src) => src && !isLogoOrIcon(src) && !isFloorPlan(src) && !isTinyThumbnail(src));
-  const uploaded = filtered.find((src) => src.startsWith('data:'));
-  if (uploaded) return uploaded;
-  const fallback = images.find((src) => src && !isLogoOrIcon(src) && !isTinyThumbnail(src));
-  return filtered[0] || fallback || images[0] || null;
+  const filtered = images.filter((src) => src && typeof src === 'string' && !isLogoOrIcon(src) && !isFloorPlan(src) && !isTinyThumbnail(src));
+  return filtered[0] || images[0] || null;
 };
 
 // Создание карточки проекта
@@ -384,18 +381,19 @@ const showProjectDetails = async (projectId) => {
       : 'Цена по запросу*';
 
     const floorPlansSet = new Set((project.floor_plans || []).filter(Boolean));
-    const allImages = (project.images || []).filter((src) => src && !isLogoOrIcon(src));
+    const allImages = (project.images || []).filter((src) => src && typeof src === 'string' && !isLogoOrIcon(src));
     const houseImagesOnly = allImages.filter((src) => !floorPlansSet.has(src));
-    const mainImage = getFirstHouseImage(houseImagesOnly) || getFirstHouseImage(allImages) || allImages[0];
-    const otherImages = houseImagesOnly.filter((src) => src !== mainImage);
+    const mainImage = houseImagesOnly[0] || allImages[0];
+    const otherImages = houseImagesOnly.slice(1);
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
     const imgTag = (url, cls) => {
-      if (!url || !url.startsWith('http')) return '';
-      const fb = getProxyFallbackUrl(url);
+      if (!url || typeof url !== 'string') return '';
+      const srcUrl = toImgUrl(url);
+      const fb = url.startsWith('http') ? getProxyFallbackUrl(url) : null;
       const onerr = fb
         ? `onerror="if(this.dataset.fallback){this.src=this.dataset.fallback;delete this.dataset.fallback}else{this.style.display='none'}" data-fallback="${escapeHtml(fb)}"`
         : `onerror="this.style.display='none'"`;
-      return `<img src="${escapeHtml(toImgUrl(url))}" alt="${escapeHtml(project.name)}" class="${cls}" ${onerr}>`;
+      return `<img src="${escapeHtml(srcUrl)}" alt="${escapeHtml(project.name)}" class="${cls}" ${onerr}>`;
     };
     const modalImagesHtml = mainImage ? `
       ${imgTag(mainImage, 'modal-image')}
