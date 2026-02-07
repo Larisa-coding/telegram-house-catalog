@@ -9,6 +9,21 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const normalizeImages = (im) => {
+  if (!im) return { main: [], gallery: [] };
+  if (Array.isArray(im)) {
+    const arr = im.filter((s) => s && typeof s === 'string');
+    return { main: arr.length ? [arr[0]] : [], gallery: arr.slice(1) };
+  }
+  if (im && typeof im === 'object' && (im.main || im.gallery)) {
+    return {
+      main: Array.isArray(im.main) ? im.main.filter((s) => s && typeof s === 'string') : [],
+      gallery: Array.isArray(im.gallery) ? im.gallery.filter((s) => s && typeof s === 'string') : [],
+    };
+  }
+  return { main: [], gallery: [] };
+};
+
 const frontendDir = path.join(__dirname, '../frontend');
 
 // Middleware
@@ -171,6 +186,7 @@ app.get('/api/projects', async (req, res) => {
 
     const projects = result.rows.map((project) => ({
       ...project,
+      images: normalizeImages(project.images),
       formatted_description: generateDescription(project),
     }));
 
@@ -199,6 +215,7 @@ app.get('/api/projects/:id', async (req, res) => {
     }
 
     const project = result.rows[0];
+    project.images = normalizeImages(project.images);
     project.formatted_description = generateDescription(project);
 
     res.json({ success: true, data: project });
@@ -424,12 +441,14 @@ app.patch('/api/projects/:id', async (req, res) => {
 
     if (Array.isArray(images)) {
       newImages = images;
+    } else if (images && typeof images === 'object' && (images.main || images.gallery)) {
+      newImages = [...(Array.isArray(images.main) ? images.main : []), ...(Array.isArray(images.gallery) ? images.gallery : [])];
     } else {
       if (typeof removeImageAtIndex === 'number' && removeImageAtIndex >= 0 && removeImageAtIndex < newImages.length) {
         newImages.splice(removeImageAtIndex, 1);
       }
       if (Array.isArray(appendImages) && appendImages.length > 0) {
-        const maxSize = 1500000;
+        const maxSize = 2200000;
         const valid = appendImages.filter((s) => typeof s === 'string' && s.startsWith('data:image/') && s.length < maxSize);
         addedCount = valid.length;
         newImages = [...newImages, ...valid];

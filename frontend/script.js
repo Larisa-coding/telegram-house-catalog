@@ -303,17 +303,36 @@ const isFloorPlan = (url) => {
 
 const isTinyThumbnail = (url) => /width=32|width=64|height=32|height=64/.test(url || '');
 
-const getFirstHouseImage = (images) => {
-  if (!images || !Array.isArray(images) || images.length === 0) return null;
-  const filtered = images.filter((src) => src && typeof src === 'string' && !isLogoOrIcon(src) && !isFloorPlan(src) && !isTinyThumbnail(src));
-  return filtered[0] || images[0] || null;
+const getCoverImage = (project) => {
+  const im = project?.images;
+  if (!im) return null;
+  if (im.main && Array.isArray(im.main) && im.main[0]) return im.main[0];
+  if (Array.isArray(im) && im[0]) return im[0];
+  return null;
+};
+
+const getAllGalleryImages = (project) => {
+  const im = project?.images;
+  if (!im) return [];
+  if (im.main || im.gallery) {
+    return [...(im.main || []), ...(im.gallery || [])].filter((s) => s && typeof s === 'string');
+  }
+  return Array.isArray(im) ? im.filter((s) => s && typeof s === 'string') : [];
+};
+
+const debounce = (fn, ms) => {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
 };
 
 // Создание карточки проекта
 const createProjectCard = (project) => {
   const card = document.createElement('div');
   card.className = 'project-card';
-  const firstImg = getFirstHouseImage(project.images);
+  const firstImg = getCoverImage(project);
   const imageUrl = firstImg ? toImgUrl(firstImg) : 'https://via.placeholder.com/400x300?text=Дом';
   const fallbackUrl = firstImg ? getProxyFallbackUrl(firstImg) : null;
   
@@ -344,7 +363,7 @@ const createProjectCard = (project) => {
       <div class="project-price-note">* Уточняйте актуальные цены у менеджера</div>
       <div class="project-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions">
-        <button class="btn btn-primary" onclick="showProjectDetails(${projId})">
+        <button class="btn btn-primary details-btn" data-project-id="${projId}" data-project-name="${escapeHtml(project.name || '')}">
           Подробнее
         </button>
         <button class="btn btn-secondary" onclick="contactManager(${projId})">
@@ -371,6 +390,11 @@ const showProjectDetails = async (projectId) => {
     const modal = document.getElementById('modal');
     const modalBody = document.getElementById('modal-body');
 
+    const allImages = getAllGalleryImages(project);
+    if (allImages.length === 0 && !project.description) {
+      throw new Error('Нет данных для отображения');
+    }
+
     const specs = [];
     if (project.area) specs.push(`Площадь: ${project.area} м²`);
     if (project.material) specs.push(`Материал: ${project.material}`);
@@ -380,11 +404,6 @@ const showProjectDetails = async (projectId) => {
       ? `${project.price.toLocaleString('ru-RU')} ₽*`
       : 'Цена по запросу*';
 
-    const floorPlansSet = new Set((project.floor_plans || []).filter(Boolean));
-    const allImages = (project.images || []).filter((src) => src && typeof src === 'string' && !isLogoOrIcon(src));
-    const houseImagesOnly = allImages.filter((src) => !floorPlansSet.has(src));
-    const mainImage = houseImagesOnly[0] || allImages[0];
-    const otherImages = houseImagesOnly.slice(1);
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
     const imgTag = (url, cls) => {
       if (!url || typeof url !== 'string') return '';
@@ -395,23 +414,20 @@ const showProjectDetails = async (projectId) => {
         : `onerror="this.style.display='none'"`;
       return `<img src="${escapeHtml(srcUrl)}" alt="${escapeHtml(project.name)}" class="${cls}" ${onerr}>`;
     };
-    const modalImagesHtml = mainImage ? `
-      ${imgTag(mainImage, 'modal-image')}
-      ${otherImages.length > 0 ? `<div class="modal-images">${otherImages.map((img) => imgTag(img, '')).join('')}</div>` : ''}
-    ` : '';
 
-    const floorPlansHtml = floorPlans.length > 0 ? `
-      <div class="modal-floor-plans">
-        <h4 class="modal-floor-plans-title">Планировки</h4>
-        <div class="modal-floor-plans-grid">
-          ${floorPlans.map((url) => imgTag(url, 'modal-floor-plan-img')).join('')}
+    const carouselImages = [...allImages, ...floorPlans];
+    const carouselHtml = carouselImages.length > 0 ? `
+      <div class="modal-carousel">
+        <div class="modal-carousel-inner">
+          ${carouselImages.map((url, i) => `<div class="modal-carousel-slide" data-index="${i}">${imgTag(url, 'modal-image')}</div>`).join('')}
         </div>
+        ${carouselImages.length > 1 ? `<div class="modal-carousel-nav"><button type="button" class="carousel-prev" aria-label="Назад">←</button><span class="carousel-counter">1 / ${carouselImages.length}</span><button type="button" class="carousel-next" aria-label="Вперёд">→</button></div>` : ''}
       </div>
     ` : '';
+    const modalImagesHtml = carouselHtml;
 
     modalBody.innerHTML = `
       ${modalImagesHtml}
-      ${floorPlansHtml}
       <div class="modal-name">${escapeHtml(project.name)}</div>
       <div class="modal-specs">${specs.join(' | ')}</div>
       <div class="modal-price">${price}</div>
@@ -419,15 +435,41 @@ const showProjectDetails = async (projectId) => {
       <div class="modal-description">${renderDescription(project.formatted_description || project.description || '')}</div>
       <div class="project-actions modal-actions">
         <a href="https://строим.дом.рф/project/${project.project_id || project.id}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Подробнее на сайте</a>
-        <button class="btn btn-secondary" onclick="contactManager(${project.id})">Связаться с менеджером</button>
+        <button class="btn btn-secondary" onclick="contactManager(${project.id ?? project.project_id})">Связаться с менеджером</button>
       </div>
     `;
 
     modal.style.display = 'block';
+
+    if (carouselImages.length > 1) {
+      let currIdx = 0;
+      const slides = modalBody.querySelectorAll('.modal-carousel-slide');
+      const counterEl = modalBody.querySelector('.carousel-counter');
+      const goTo = (idx) => {
+        currIdx = Math.max(0, Math.min(idx, slides.length - 1));
+        slides.forEach((s, i) => s.style.display = i === currIdx ? 'block' : 'none');
+        if (counterEl) counterEl.textContent = `${currIdx + 1} / ${slides.length}`;
+      };
+      goTo(0);
+      modalBody.querySelector('.carousel-prev')?.addEventListener('click', () => goTo(currIdx - 1));
+      modalBody.querySelector('.carousel-next')?.addEventListener('click', () => goTo(currIdx + 1));
+    }
   } catch (error) {
     alert(`Ошибка: ${error.message}`);
   }
 };
+
+const debouncedShowDetails = debounce((projectId) => showProjectDetails(projectId), 300);
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('projects-grid')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.details-btn');
+    if (btn) {
+      const id = btn.dataset.projectId;
+      if (id) debouncedShowDetails(id);
+    }
+  });
+});
 
 const TELEGRAM_MANAGER = 'larissa_malio';
 const TELEGRAM_AUTO_TEXT = 'Добрый день! ✨ Пишу с вашего классного приложения — хочу обсудить несколько моментов. Подскажете?';

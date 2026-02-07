@@ -433,7 +433,14 @@
       const res = await fetch(`${API_URL}/projects/${projectId}`);
       const data = await res.json();
       if (data.success) {
-        currentEditImages = Array.isArray(data.data.images) ? [...data.data.images] : [];
+        const im = data.data.images;
+        if (Array.isArray(im)) {
+          currentEditImages = [...im];
+        } else if (im && typeof im === 'object') {
+          currentEditImages = [...(im.main || []), ...(im.gallery || [])];
+        } else {
+          currentEditImages = [];
+        }
         renderPhotosGrid();
       } else {
         currentEditImages = [];
@@ -482,10 +489,10 @@
           r.onload = () => resolve(r.result);
           r.readAsDataURL(f);
         });
-        if (dataUrl.length < 1500000) dataUrls.push(dataUrl);
+        if (dataUrl.length < 2200000) dataUrls.push(dataUrl);
       }
       if (dataUrls.length === 0) {
-        showMsg(msg, 'Нет подходящих фото (jpg/png, до 1.1 МБ каждое).', true);
+        showMsg(msg, 'Нет подходящих фото (jpg/png, до 1.5 МБ каждое).', true);
         btn.disabled = false;
         return;
       }
