@@ -8,16 +8,25 @@ const getApiBase = () => {
 };
 const API_URL = getApiBase() + '/api';
 
-// дом.рф — используем наш backend proxy (Telegram/wsrv.nl блокируются)
+// дом.рф — wsrv.nl (CDN), fallback на наш proxy
 const toImgUrl = (url) => {
   if (!url || !url.startsWith('http')) return url;
   const needsProxy = url.includes('xn--80az8a') || url.includes('xn--h1aieheg') ||
     url.includes('строим.дом') || url.includes('наш.дом');
   if (needsProxy) {
-    const base = getApiBase();
-    return base ? `${base}/api/proxy-image?url=${encodeURIComponent(url)}` : url;
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
   }
   return url;
+};
+const getProxyFallbackUrl = (url) => {
+  if (!url || !url.startsWith('http')) return null;
+  const needsProxy = url.includes('xn--80az8a') || url.includes('xn--h1aieheg') ||
+    url.includes('строим.дом') || url.includes('наш.дом');
+  if (needsProxy) {
+    const base = getApiBase();
+    return base ? `${base}/api/proxy-image?url=${encodeURIComponent(url)}` : null;
+  }
+  return null;
 };
 
 let currentOffset = 0;
@@ -306,6 +315,7 @@ const createProjectCard = (project) => {
   card.className = 'project-card';
   const firstImg = getFirstHouseImage(project.images);
   const imageUrl = firstImg && firstImg.startsWith('http') ? toImgUrl(firstImg) : 'https://via.placeholder.com/400x300?text=Дом';
+  const fallbackUrl = firstImg ? getProxyFallbackUrl(firstImg) : null;
   
   const specs = [];
   if (project.area) specs.push(`Площадь: ${project.area} м²`);
@@ -322,7 +332,7 @@ const createProjectCard = (project) => {
   card.innerHTML = `
     <div class="project-image-container">
       <img src="${imageUrl}" alt="${project.name}" class="project-image"
-           onerror="this.src='https://via.placeholder.com/400x300?text=Нет+фото'">
+           ${fallbackUrl ? `data-fallback="${escapeHtml(fallbackUrl)}" onerror="if(this.dataset.fallback){this.src=this.dataset.fallback;delete this.dataset.fallback}else{this.src='https://via.placeholder.com/400x300?text=Нет+фото'}"` : "onerror=\"this.src='https://via.placeholder.com/400x300?text=Нет+фото'\""}>
       <button class="favorite-btn ${favoriteClass}" onclick="toggleProjectFavorite(${projId}, this)" title="Добавить в избранное">
         ${favoriteIcon}
       </button>
@@ -378,7 +388,11 @@ const showProjectDetails = async (projectId) => {
     const floorPlans = (project.floor_plans || []).filter((src) => src && typeof src === 'string');
     const imgTag = (url, cls) => {
       if (!url || !url.startsWith('http')) return '';
-      return `<img src="${escapeHtml(toImgUrl(url))}" alt="${escapeHtml(project.name)}" class="${cls}" onerror="this.style.display='none'">`;
+      const fb = getProxyFallbackUrl(url);
+      const onerr = fb
+        ? `onerror="if(this.dataset.fallback){this.src=this.dataset.fallback;delete this.dataset.fallback}else{this.style.display='none'}" data-fallback="${escapeHtml(fb)}"`
+        : `onerror="this.style.display='none'"`;
+      return `<img src="${escapeHtml(toImgUrl(url))}" alt="${escapeHtml(project.name)}" class="${cls}" ${onerr}>`;
     };
     const modalImagesHtml = mainImage ? `
       ${imgTag(mainImage, 'modal-image')}
