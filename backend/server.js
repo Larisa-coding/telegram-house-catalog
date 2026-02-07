@@ -28,16 +28,15 @@ app.get('/api/proxy-image', async (req, res) => {
       return res.status(400).json({ error: 'Invalid url' });
     }
     const isNash = url.includes('xn--80az8a') || url.includes('наш.дом.рф');
-    // axios proxy (наш.дом.рф может возвращать 502 с datacenter IP)
-    const host = isNash ? 'xn--80az8a.xn--d1aqf.xn--p1ai' : (url.includes('xn--h1aieheg') ? 'xn--h1aieheg.xn--d1aqf.xn--p1ai' : 'xn--80az8a.xn--d1aqf.xn--p1ai');
-    const referer = `https://${host}/`;
+    // Referer как у браузера: страница строим.дом.рф встраивает картинки с resizer наш.дом.рф
+    const referer = 'https://xn--h1aieheg.xn--d1aqf.xn--p1ai/'; // строим.дом.рф
     const resp = await axios.get(url, {
       responseType: 'stream',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Referer': referer,
-        'Origin': `https://${host}`,
+        'Origin': referer.slice(0, -1),
       },
       timeout: 20000,
       validateStatus: () => true,
