@@ -58,6 +58,13 @@
     </div>
 
     <div class="admin-card">
+      <h2>Очистить все фото</h2>
+      <p>Удалить спарсенные фото (дом.рф) у всех проектов. После этого загружай свои фото — они будут отображаться сразу.</p>
+      <button id="clear-all-images-btn" class="admin-btn admin-btn-danger admin-btn-sm">Очистить фото у всех проектов</button>
+      <div id="clear-all-images-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>Обновить проекты</h2>
       <p>Перепарсить все проекты с строим.дом.рф — фото, планировки, материал. Занимает 2–5 мин.</p>
       <button id="reparse-materials-btn" class="admin-btn admin-btn-secondary">Обновить все проекты</button>
@@ -245,6 +252,25 @@
         if (data.success) {
           showMsg(msg, `Удалено: ${data.deleted} проект(ов).`);
           if (data.deleted > 0) document.getElementById('delete-names').value = '';
+        } else {
+          showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById('clear-all-images-btn').addEventListener('click', async () => {
+      if (!confirm('Очистить фото и планировки у всех проектов? Загруженные вручную фото тоже удалятся.')) return;
+      const btn = document.getElementById('clear-all-images-btn');
+      const msg = document.getElementById('clear-all-images-msg');
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/clear-all-images`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, `Очищено: ${data.cleared} проектов. Теперь загружай свои фото.`, false);
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
         }

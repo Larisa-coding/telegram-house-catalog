@@ -511,6 +511,19 @@ app.post('/api/projects/delete-batch', async (req, res) => {
   }
 });
 
+// POST /api/projects/clear-all-images — очистить images и floor_plans у всех проектов (убрать спарсенные URL, загружать свои)
+app.post('/api/projects/clear-all-images', async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE projects SET images = '[]'::jsonb, floor_plans = '[]'::jsonb RETURNING project_id"
+    );
+    res.json({ success: true, cleared: result.rowCount });
+  } catch (error) {
+    console.error('Error clear-all-images:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/reparse-materials - перепарсить все проекты (запуск в фоне, без таймаута)
 app.post('/api/reparse-materials', async (req, res) => {
   try {
@@ -533,12 +546,12 @@ app.post('/api/reparse-materials', async (req, res) => {
           await pool.query(
             `UPDATE projects SET material=$1, name=$2, area=$3, price=$4, bedrooms=$5,
              has_kitchen_living=$6, has_garage=$7, has_second_floor=$8, has_terrace=$9,
-             description=$10, images=$11, floor_plans=$12, url=$13, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$14`,
+             description=$10, url=$11, parsed_at=CURRENT_TIMESTAMP WHERE project_id=$12`,
             [
               projectData.material, projectData.name, projectData.area, projectData.price,
               projectData.bedrooms, projectData.has_kitchen_living, projectData.has_garage,
               projectData.has_second_floor, projectData.has_terrace, projectData.description,
-              JSON.stringify(projectData.images), JSON.stringify(projectData.floor_plans || []), projectData.url, projectData.project_id,
+              projectData.url, projectData.project_id,
             ]
           );
           updated += 1;
