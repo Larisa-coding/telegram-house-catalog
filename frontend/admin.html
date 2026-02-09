@@ -41,21 +41,21 @@
     </div>
 
     <div class="admin-card">
-      <h2>Восстановить удаленный проект</h2>
-      <p>Если проект был удален, можно восстановить его по ID с сайта строим.дом.рф и сразу поместить в архив.</p>
-      <form id="restore-project-form" class="admin-form">
-        <label for="restore-project-id">ID проекта</label>
-        <input type="text" id="restore-project-id" placeholder="Например: 77279" inputmode="numeric" pattern="[0-9]+">
-        <button type="submit" class="admin-btn admin-btn-primary" id="restore-project-btn">Восстановить и архивировать</button>
-      </form>
-      <div id="restore-project-msg" class="admin-msg" role="status"></div>
-    </div>
-
-    <div class="admin-card">
       <h2>Архив проектов</h2>
       <p>Просмотр и восстановление архивных проектов.</p>
       <button id="load-archived-btn" class="admin-btn admin-btn-secondary">Загрузить архив</button>
       <div id="archived-list" class="admin-table-wrap" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Восстановить удаленный проект</h2>
+      <p>Если проект был удален, можно восстановить его по ID с сайта строим.дом.рф и сразу поместить в архив.</p>
+      <form id="restore-project-form" class="admin-form">
+        <label for="restore-project-id">ID проекта</label>
+        <input type="text" id="restore-project-id" placeholder="Например: 52133" inputmode="numeric" pattern="[0-9]+">
+        <button type="submit" class="admin-btn admin-btn-primary" id="restore-project-btn">Восстановить и архивировать</button>
+      </form>
+      <div id="restore-project-msg" class="admin-msg" role="status"></div>
     </div>
 
     <div class="admin-card">
