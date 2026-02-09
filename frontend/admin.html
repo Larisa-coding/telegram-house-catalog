@@ -570,7 +570,8 @@
       document.getElementById('edit-project-msg').style.display = 'none';
       document.getElementById('edit-photo-modal').style.display = 'flex';
 
-      const res = await fetch(`${API_URL}/projects/${projectId}`);
+      // В админке используем includeArchived=true чтобы можно было редактировать архивные проекты
+      const res = await fetch(`${API_URL}/projects/${projectId}?includeArchived=true`);
       const data = await res.json();
       if (data.success) {
         const im = data.data.images;

@@ -242,14 +242,22 @@ app.get('/api/projects/archived', async (req, res) => {
   }
 });
 
-// GET /api/projects/:id - детальная карточка
+// GET /api/projects/:id - детальная карточка (исключает архивные проекты для обычных пользователей)
 app.get('/api/projects/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM projects WHERE id = $1 OR project_id = $1',
-      [id]
-    );
+    const { includeArchived } = req.query;
+    
+    // Для обычных пользователей исключаем архивные проекты
+    // Для админки можно использовать ?includeArchived=true
+    let query = 'SELECT * FROM projects WHERE (id = $1 OR project_id = $1)';
+    const params = [id];
+    
+    if (includeArchived !== 'true') {
+      query += ' AND (is_archived IS NULL OR is_archived = false)';
+    }
+    
+    const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Project not found' });

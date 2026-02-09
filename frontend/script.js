@@ -138,7 +138,11 @@ const loadProjects = async (reset = false) => {
           .catch(() => ({ success: false }))
       );
       const results = await Promise.all(promises);
-      projects = results.filter((r) => r.success).map((r) => r.data);
+      // Фильтруем архивные проекты (они не должны загружаться)
+      projects = results
+        .filter((r) => r.success && r.data)
+        .map((r) => r.data)
+        .filter((p) => !p.is_archived); // Исключаем архивные проекты
       hasMore = false;
       showResultsCount(projects.length, false);
     } else {
@@ -477,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const TELEGRAM_MANAGER = 'larissa_malio';
-const TELEGRAM_AUTO_TEXT = 'Здравствуйте! 👋 Пишу из вашего приложения каталога домов — есть несколько вопросов, подскажете?';
+const TELEGRAM_AUTO_TEXT = 'Добрый день! 👋 Пишу с вашего классного приложения с каталогом домов «Уютного дома», у меня появилось несколько вопросов, поможете мне? 🙂';
 
 const getTelegramLink = (prefillText) => {
   const text = prefillText ? encodeURIComponent(prefillText) : '';
