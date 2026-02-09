@@ -190,7 +190,8 @@ app.get('/api/projects', async (req, res) => {
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0]?.count || 0, 10);
 
-    query += ` ORDER BY parsed_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    // Сортируем по display_order (если установлен), затем по parsed_at
+    query += ` ORDER BY COALESCE(display_order, 999999) ASC, parsed_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(limitNum, offsetNum);
 
     const result = await pool.query(query, params);
@@ -327,13 +328,18 @@ app.post('/api/parse/:id', async (req, res) => {
         data: result.rows[0] 
       });
     } else {
-      // Создаем новый
+      // Создаем новый - получаем максимальный display_order и добавляем 1
+      const maxOrderResult = await pool.query(
+        'SELECT COALESCE(MAX(display_order), 0) as max_order FROM projects WHERE (is_archived IS NULL OR is_archived = false)'
+      );
+      const newDisplayOrder = (maxOrderResult.rows[0]?.max_order ?? 0) + 1;
+      
       const insertQuery = `
         INSERT INTO projects (
           project_id, name, area, material, price, bedrooms,
           has_kitchen_living, has_garage, has_second_floor, has_terrace,
-          description, images, floor_plans, url
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          description, images, floor_plans, url, display_order
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
       `;
       const result = await pool.query(insertQuery, [
@@ -786,6 +792,90 @@ app.post('/api/projects/:id/unarchive', async (req, res) => {
     res.json({ success: true, message: 'Проект восстановлен', data: result.rows[0] });
   } catch (error) {
     console.error('Error unarchiving project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/projects/:id/move-order - изменить порядок проекта (up, down, top, bottom)
+app.post('/api/projects/:id/move-order', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { direction } = req.body; // 'up', 'down', 'top', 'bottom'
+    const projectId = parseInt(id);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ success: false, error: 'Некорректный ID проекта' });
+    }
+
+    if (!['up', 'down', 'top', 'bottom'].includes(direction)) {
+      return res.status(400).json({ success: false, error: 'Некорректное направление. Используйте: up, down, top, bottom' });
+    }
+
+    // Получаем текущий проект
+    const current = await pool.query(
+      'SELECT id, project_id, display_order FROM projects WHERE project_id = $1 AND (is_archived IS NULL OR is_archived = false)',
+      [projectId]
+    );
+
+    if (current.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Проект не найден или находится в архиве' });
+    }
+
+    const currentOrder = current.rows[0].display_order;
+    
+    if (direction === 'top') {
+      // Переместить в начало - установить минимальный display_order
+      const minResult = await pool.query(
+        'SELECT MIN(display_order) as min_order FROM projects WHERE (is_archived IS NULL OR is_archived = false) AND display_order IS NOT NULL'
+      );
+      const minOrder = minResult.rows[0]?.min_order ?? 0;
+      await pool.query(
+        'UPDATE projects SET display_order = $1 WHERE project_id = $2',
+        [minOrder - 1, projectId]
+      );
+    } else if (direction === 'bottom') {
+      // Переместить в конец - установить максимальный display_order
+      const maxResult = await pool.query(
+        'SELECT MAX(display_order) as max_order FROM projects WHERE (is_archived IS NULL OR is_archived = false) AND display_order IS NOT NULL'
+      );
+      const maxOrder = maxResult.rows[0]?.max_order ?? 0;
+      await pool.query(
+        'UPDATE projects SET display_order = $1 WHERE project_id = $2',
+        [maxOrder + 1, projectId]
+      );
+    } else if (direction === 'up') {
+      // Переместить вверх - поменять местами с предыдущим проектом
+      const prevResult = await pool.query(
+        'SELECT project_id, display_order FROM projects WHERE (is_archived IS NULL OR is_archived = false) AND display_order < $1 AND display_order IS NOT NULL ORDER BY display_order DESC LIMIT 1',
+        [currentOrder ?? 999999]
+      );
+      
+      if (prevResult.rows.length > 0) {
+        const prevOrder = prevResult.rows[0].display_order;
+        const prevProjectId = prevResult.rows[0].project_id;
+        // Меняем местами
+        await pool.query('UPDATE projects SET display_order = $1 WHERE project_id = $2', [prevOrder, projectId]);
+        await pool.query('UPDATE projects SET display_order = $1 WHERE project_id = $2', [currentOrder, prevProjectId]);
+      }
+    } else if (direction === 'down') {
+      // Переместить вниз - поменять местами со следующим проектом
+      const nextResult = await pool.query(
+        'SELECT project_id, display_order FROM projects WHERE (is_archived IS NULL OR is_archived = false) AND display_order > $1 AND display_order IS NOT NULL ORDER BY display_order ASC LIMIT 1',
+        [currentOrder ?? -1]
+      );
+      
+      if (nextResult.rows.length > 0) {
+        const nextOrder = nextResult.rows[0].display_order;
+        const nextProjectId = nextResult.rows[0].project_id;
+        // Меняем местами
+        await pool.query('UPDATE projects SET display_order = $1 WHERE project_id = $2', [nextOrder, projectId]);
+        await pool.query('UPDATE projects SET display_order = $1 WHERE project_id = $2', [currentOrder, nextProjectId]);
+      }
+    }
+
+    res.json({ success: true, message: `Проект перемещен ${direction === 'up' ? 'вверх' : direction === 'down' ? 'вниз' : direction === 'top' ? 'в начало' : 'в конец'}` });
+  } catch (error) {
+    console.error('Error moving project order:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -413,13 +413,21 @@
           list.innerHTML = `
             <table class="admin-table">
               <thead>
-                <tr><th>ID</th><th>Название</th><th></th></tr>
+                <tr><th>ID</th><th>Название</th><th>Порядок</th><th></th></tr>
               </thead>
               <tbody>
-                ${data.data.map((p) => `
+                ${data.data.map((p, index) => `
                   <tr>
                     <td>${p.project_id}</td>
                     <td>${(p.name || '-').substring(0, 45)}</td>
+                    <td>
+                      <div style="display: flex; gap: 0.25rem; align-items: center;">
+                        <button type="button" class="admin-btn admin-btn-sm" style="padding: 0.25rem 0.5rem; min-width: auto;" onclick="moveProject(${p.project_id}, 'top', this)" title="В начало">⏫</button>
+                        <button type="button" class="admin-btn admin-btn-sm" style="padding: 0.25rem 0.5rem; min-width: auto;" onclick="moveProject(${p.project_id}, 'up', this)" title="Вверх" ${index === 0 ? 'disabled' : ''}>⬆️</button>
+                        <button type="button" class="admin-btn admin-btn-sm" style="padding: 0.25rem 0.5rem; min-width: auto;" onclick="moveProject(${p.project_id}, 'down', this)" title="Вниз" ${index === data.data.length - 1 ? 'disabled' : ''}>⬇️</button>
+                        <button type="button" class="admin-btn admin-btn-sm" style="padding: 0.25rem 0.5rem; min-width: auto;" onclick="moveProject(${p.project_id}, 'bottom', this)" title="В конец">⏬</button>
+                      </div>
+                    </td>
                     <td>
                       <button type="button" class="admin-btn admin-btn-primary admin-btn-sm edit-photo-btn" data-id="${p.project_id}" data-name="${(p.name || '-').replace(/"/g, '&quot;').substring(0, 50)}">Фото</button>
                       <button type="button" class="admin-btn admin-btn-secondary admin-btn-sm" onclick="archiveProject(${p.project_id}, this)">В архив</button>
@@ -523,6 +531,26 @@
           loadProjects();
         } else {
           alert(data.error || 'Ошибка');
+        }
+      } catch (e) {
+        alert('Ошибка сети');
+      }
+      btn.disabled = false;
+    };
+
+    window.moveProject = async (projectId, direction, btn) => {
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/${projectId}/move-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadProjects(); // Перезагружаем список для обновления порядка
+        } else {
+          alert(data.error || 'Ошибка перемещения');
         }
       } catch (e) {
         alert('Ошибка сети');

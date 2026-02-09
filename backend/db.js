@@ -59,6 +59,21 @@ const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_is_archived ON projects(is_archived)
     `);
 
+    await pool.query(`
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_display_order ON projects(display_order)
+    `);
+
+    // Инициализируем display_order для существующих проектов (если еще не установлен)
+    await pool.query(`
+      UPDATE projects 
+      SET display_order = id 
+      WHERE display_order IS NULL AND (is_archived IS NULL OR is_archived = false)
+    `);
+
     // Таблица пользователей
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
