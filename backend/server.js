@@ -218,6 +218,30 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
+// GET /api/projects/archived - получить архивные проекты (ВАЖНО: должен быть ПЕРЕД /api/projects/:id)
+app.get('/api/projects/archived', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM projects WHERE is_archived IS TRUE ORDER BY parsed_at DESC'
+    );
+    const norm = (im) => normalizeImages(im);
+    const projects = result.rows.map((project) => {
+      const im = norm(project.images);
+      const firstImg = (im.main && im.main[0]) || (im.gallery && im.gallery[0]);
+      const coverOnly = firstImg ? { main: [firstImg], gallery: [] } : { main: [], gallery: [] };
+      return {
+        ...project,
+        images: coverOnly,
+        formatted_description: generateDescription(project),
+      };
+    });
+    res.json({ success: true, data: projects });
+  } catch (error) {
+    console.error('Error fetching archived projects:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/projects/:id - детальная карточка
 app.get('/api/projects/:id', async (req, res) => {
   try {
@@ -708,30 +732,6 @@ app.get('/api/materials', async (req, res) => {
     res.json({ success: true, data: materials });
   } catch (error) {
     console.error('Error fetching materials:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET /api/projects/archived - получить архивные проекты
-app.get('/api/projects/archived', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM projects WHERE is_archived IS TRUE ORDER BY parsed_at DESC'
-    );
-    const norm = (im) => normalizeImages(im);
-    const projects = result.rows.map((project) => {
-      const im = norm(project.images);
-      const firstImg = (im.main && im.main[0]) || (im.gallery && im.gallery[0]);
-      const coverOnly = firstImg ? { main: [firstImg], gallery: [] } : { main: [], gallery: [] };
-      return {
-        ...project,
-        images: coverOnly,
-        formatted_description: generateDescription(project),
-      };
-    });
-    res.json({ success: true, data: projects });
-  } catch (error) {
-    console.error('Error fetching archived projects:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
