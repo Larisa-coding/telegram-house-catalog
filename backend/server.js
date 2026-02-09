@@ -790,6 +790,75 @@ app.post('/api/projects/:id/unarchive', async (req, res) => {
   }
 });
 
+// POST /api/projects/:id/restore-and-archive - восстановить удаленный проект по ID и сразу архивировать
+app.post('/api/projects/:id/restore-and-archive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectData = await parseProject(id, { skipContractorCheck: true });
+
+    if (!projectData) {
+      return res.status(404).json({
+        success: false,
+        error: 'Проект не найден на строим.дом.рф или ошибка загрузки страницы',
+      });
+    }
+
+    // Проверяем, существует ли проект
+    const existing = await pool.query(
+      'SELECT id FROM projects WHERE project_id = $1',
+      [projectData.project_id]
+    );
+
+    if (existing.rows.length > 0) {
+      // Проект уже существует - просто архивируем его
+      const result = await pool.query(
+        'UPDATE projects SET is_archived = true WHERE project_id = $1 RETURNING project_id, name, is_archived',
+        [projectData.project_id]
+      );
+      return res.json({ 
+        success: true, 
+        message: 'Проект уже существует и был архивирован',
+        data: result.rows[0] 
+      });
+    } else {
+      // Создаем новый проект и сразу архивируем
+      const insertQuery = `
+        INSERT INTO projects (
+          project_id, name, area, material, price, bedrooms,
+          has_kitchen_living, has_garage, has_second_floor, has_terrace,
+          description, images, floor_plans, url, is_archived
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true)
+        RETURNING project_id, name, is_archived
+      `;
+      const result = await pool.query(insertQuery, [
+        projectData.project_id,
+        projectData.name,
+        projectData.area,
+        projectData.material,
+        projectData.price,
+        projectData.bedrooms,
+        projectData.has_kitchen_living,
+        projectData.has_garage,
+        projectData.has_second_floor,
+        projectData.has_terrace,
+        projectData.description,
+        JSON.stringify(projectData.images),
+        JSON.stringify(projectData.floor_plans || []),
+        projectData.url,
+      ]);
+
+      return res.json({ 
+        success: true, 
+        message: 'Проект восстановлен и помещен в архив',
+        data: result.rows[0] 
+      });
+    }
+  } catch (error) {
+    console.error('Error restoring project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/users - список пользователей для админки
 app.get('/api/users', async (req, res) => {
   try {

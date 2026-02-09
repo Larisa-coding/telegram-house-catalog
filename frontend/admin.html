@@ -41,6 +41,17 @@
     </div>
 
     <div class="admin-card">
+      <h2>Восстановить удаленный проект</h2>
+      <p>Если проект был удален, можно восстановить его по ID с сайта строим.дом.рф и сразу поместить в архив.</p>
+      <form id="restore-project-form" class="admin-form">
+        <label for="restore-project-id">ID проекта</label>
+        <input type="text" id="restore-project-id" placeholder="Например: 77279" inputmode="numeric" pattern="[0-9]+">
+        <button type="submit" class="admin-btn admin-btn-primary" id="restore-project-btn">Восстановить и архивировать</button>
+      </form>
+      <div id="restore-project-msg" class="admin-msg" role="status"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>Архив проектов</h2>
       <p>Просмотр и восстановление архивных проектов.</p>
       <button id="load-archived-btn" class="admin-btn admin-btn-secondary">Загрузить архив</button>
@@ -179,6 +190,36 @@
           showMsg(msg, `Добавлено: ${data.created}, обновлено: ${data.updated}.${data.failed?.length ? ' Не найдены: ' + data.failed.join(', ') : ''}`, data.failed?.length > 0);
         } else {
           showMsg(msg, data.error || 'Ошибка.', true);
+        }
+      } catch (err) {
+        showMsg(msg, 'Ошибка сети или сервера.', true);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById('restore-project-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('restore-project-id').value.trim().replace(/\D/g, '');
+      const btn = document.getElementById('restore-project-btn');
+      const msg = document.getElementById('restore-project-msg');
+      if (!id) {
+        showMsg(msg, 'Введи числовой ID проекта.', true);
+        return;
+      }
+      btn.disabled = true;
+      msg.style.display = 'none';
+      msg.textContent = 'Восстановление проекта...';
+      msg.className = 'admin-msg';
+      msg.style.display = 'block';
+      try {
+        const res = await fetch(`${API_URL}/projects/${id}/restore-and-archive`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showMsg(msg, data.message || 'Проект восстановлен и помещен в архив.');
+          document.getElementById('restore-project-id').value = '';
+          loadArchived(); // Обновляем список архива
+        } else {
+          showMsg(msg, data.error || 'Ошибка восстановления.', true);
         }
       } catch (err) {
         showMsg(msg, 'Ошибка сети или сервера.', true);
