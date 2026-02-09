@@ -51,6 +51,14 @@ const initDB = async () => {
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS floor_plans JSONB DEFAULT '[]'::jsonb
     `);
 
+    await pool.query(`
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_is_archived ON projects(is_archived)
+    `);
+
     // Таблица пользователей
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (

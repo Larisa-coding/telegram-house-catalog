@@ -139,14 +139,19 @@ app.post('/api/telegram/webhook', (req, res) => {
   }
 });
 
-// GET /api/projects - все проекты с фильтрами
+// GET /api/projects - все проекты с фильтрами (исключая архивные)
 app.get('/api/projects', async (req, res) => {
   try {
-    const { material, minArea, maxArea, search, projectId, limit = 50, offset = 0 } = req.query;
+    const { material, minArea, maxArea, search, projectId, limit = 50, offset = 0, includeArchived } = req.query;
     
     let query = 'SELECT * FROM projects WHERE 1=1';
     const params = [];
     let paramCount = 0;
+
+    // Исключаем архивные проекты, если не запрошено явно
+    if (includeArchived !== 'true') {
+      query += ' AND (is_archived IS NULL OR is_archived = false)';
+    }
 
     if (projectId) {
       paramCount++;
@@ -693,16 +698,76 @@ app.post('/api/reparse-materials', async (req, res) => {
   }
 });
 
-// GET /api/materials - уникальные материалы для фильтров
+// GET /api/materials - уникальные материалы для фильтров (исключая архивные)
 app.get('/api/materials', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT DISTINCT material FROM projects WHERE material IS NOT NULL ORDER BY material'
+      'SELECT DISTINCT material FROM projects WHERE material IS NOT NULL AND (is_archived IS NULL OR is_archived = false) ORDER BY material'
     );
     const materials = result.rows.map(row => row.material);
     res.json({ success: true, data: materials });
   } catch (error) {
     console.error('Error fetching materials:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/projects/archived - получить архивные проекты
+app.get('/api/projects/archived', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM projects WHERE is_archived = true ORDER BY parsed_at DESC'
+    );
+    const norm = (im) => normalizeImages(im);
+    const projects = result.rows.map((project) => {
+      const im = norm(project.images);
+      const firstImg = (im.main && im.main[0]) || (im.gallery && im.gallery[0]);
+      const coverOnly = firstImg ? { main: [firstImg], gallery: [] } : { main: [], gallery: [] };
+      return {
+        ...project,
+        images: coverOnly,
+        formatted_description: generateDescription(project),
+      };
+    });
+    res.json({ success: true, data: projects });
+  } catch (error) {
+    console.error('Error fetching archived projects:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/projects/:id/archive - архивировать проект
+app.post('/api/projects/:id/archive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE projects SET is_archived = true WHERE id = $1 OR project_id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Проект не найден' });
+    }
+    res.json({ success: true, message: 'Проект архивирован', data: result.rows[0] });
+  } catch (error) {
+    console.error('Error archiving project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/projects/:id/unarchive - восстановить проект из архива
+app.post('/api/projects/:id/unarchive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE projects SET is_archived = false WHERE id = $1 OR project_id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Проект не найден' });
+    }
+    res.json({ success: true, message: 'Проект восстановлен', data: result.rows[0] });
+  } catch (error) {
+    console.error('Error unarchiving project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

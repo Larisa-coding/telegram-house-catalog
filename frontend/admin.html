@@ -41,6 +41,13 @@
     </div>
 
     <div class="admin-card">
+      <h2>Архив проектов</h2>
+      <p>Просмотр и восстановление архивных проектов.</p>
+      <button id="load-archived-btn" class="admin-btn admin-btn-secondary">Загрузить архив</button>
+      <div id="archived-list" class="admin-table-wrap" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>Удалить проекты</h2>
       <p>По ID или по названию.</p>
       <form id="delete-batch-form" class="admin-form">
@@ -374,6 +381,7 @@
                     <td>${(p.name || '-').substring(0, 45)}</td>
                     <td>
                       <button type="button" class="admin-btn admin-btn-primary admin-btn-sm edit-photo-btn" data-id="${p.project_id}" data-name="${(p.name || '-').replace(/"/g, '&quot;').substring(0, 50)}">Фото</button>
+                      <button type="button" class="admin-btn admin-btn-secondary admin-btn-sm" onclick="archiveProject(${p.project_id}, this)">В архив</button>
                       <button type="button" class="admin-btn admin-btn-danger admin-btn-sm" onclick="deleteProject(${p.project_id}, this)">Удалить</button>
                     </td>
                   </tr>
@@ -397,6 +405,76 @@
         const data = await res.json();
         if (data.success) loadProjects();
         else alert(data.error || 'Ошибка');
+      } catch (e) {
+        alert('Ошибка сети');
+      }
+      btn.disabled = false;
+    };
+
+    window.archiveProject = async (projectId, btn) => {
+      if (!confirm(`Архивировать проект ${projectId}? Он не будет отображаться в приложении, но данные сохранятся.`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/${projectId}/archive`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          loadProjects();
+          if (typeof loadArchived === 'function') loadArchived();
+        } else {
+          alert(data.error || 'Ошибка');
+        }
+      } catch (e) {
+        alert('Ошибка сети');
+      }
+      btn.disabled = false;
+    };
+
+    const loadArchived = async () => {
+      const list = document.getElementById('archived-list');
+      list.innerHTML = '<p style="color:#64748b;">Загрузка...</p>';
+      try {
+        const res = await fetch(`${API_URL}/projects/archived`);
+        const data = await res.json();
+        if (data.success && data.data?.length > 0) {
+          list.innerHTML = `
+            <table class="admin-table">
+              <thead>
+                <tr><th>ID</th><th>Название</th><th></th></tr>
+              </thead>
+              <tbody>
+                ${data.data.map((p) => `
+                  <tr>
+                    <td>${p.project_id}</td>
+                    <td>${(p.name || '-').substring(0, 45)}</td>
+                    <td>
+                      <button type="button" class="admin-btn admin-btn-primary admin-btn-sm edit-photo-btn" data-id="${p.project_id}" data-name="${(p.name || '-').replace(/"/g, '&quot;').substring(0, 50)}">Фото</button>
+                      <button type="button" class="admin-btn admin-btn-secondary admin-btn-sm" onclick="unarchiveProject(${p.project_id}, this)">Восстановить</button>
+                      <button type="button" class="admin-btn admin-btn-danger admin-btn-sm" onclick="deleteProject(${p.project_id}, this)">Удалить</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          list.innerHTML = '<p style="color:#64748b;">Архив пуст</p>';
+        }
+      } catch (err) {
+        list.innerHTML = '<p style="color:#b91c1c;">Ошибка загрузки</p>';
+      }
+    };
+
+    window.unarchiveProject = async (projectId, btn) => {
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/projects/${projectId}/unarchive`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          loadArchived();
+          loadProjects();
+        } else {
+          alert(data.error || 'Ошибка');
+        }
       } catch (e) {
         alert('Ошибка сети');
       }
@@ -583,6 +661,7 @@
     });
 
     document.getElementById('load-projects-btn').addEventListener('click', loadProjects);
+    document.getElementById('load-archived-btn').addEventListener('click', loadArchived);
     document.getElementById('load-users-btn').addEventListener('click', loadUsers);
     loadUsers();
   </script>
