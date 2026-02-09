@@ -716,7 +716,7 @@ app.get('/api/materials', async (req, res) => {
 app.get('/api/projects/archived', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM projects WHERE is_archived = true ORDER BY parsed_at DESC'
+      'SELECT * FROM projects WHERE is_archived IS TRUE ORDER BY parsed_at DESC'
     );
     const norm = (im) => normalizeImages(im);
     const projects = result.rows.map((project) => {
@@ -740,13 +740,18 @@ app.get('/api/projects/archived', async (req, res) => {
 app.post('/api/projects/:id/archive', async (req, res) => {
   try {
     const { id } = req.params;
+    const projectId = parseInt(id);
+    if (isNaN(projectId)) {
+      return res.status(400).json({ success: false, error: 'Некорректный ID проекта' });
+    }
     const result = await pool.query(
-      'UPDATE projects SET is_archived = true WHERE id = $1 OR project_id = $1 RETURNING *',
-      [id]
+      'UPDATE projects SET is_archived = true WHERE project_id = $1 RETURNING project_id, name, is_archived',
+      [projectId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Проект не найден' });
     }
+    console.log(`Project ${projectId} archived:`, result.rows[0]);
     res.json({ success: true, message: 'Проект архивирован', data: result.rows[0] });
   } catch (error) {
     console.error('Error archiving project:', error);
@@ -758,13 +763,18 @@ app.post('/api/projects/:id/archive', async (req, res) => {
 app.post('/api/projects/:id/unarchive', async (req, res) => {
   try {
     const { id } = req.params;
+    const projectId = parseInt(id);
+    if (isNaN(projectId)) {
+      return res.status(400).json({ success: false, error: 'Некорректный ID проекта' });
+    }
     const result = await pool.query(
-      'UPDATE projects SET is_archived = false WHERE id = $1 OR project_id = $1 RETURNING *',
-      [id]
+      'UPDATE projects SET is_archived = false WHERE project_id = $1 RETURNING project_id, name, is_archived',
+      [projectId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Проект не найден' });
     }
+    console.log(`Project ${projectId} unarchived:`, result.rows[0]);
     res.json({ success: true, message: 'Проект восстановлен', data: result.rows[0] });
   } catch (error) {
     console.error('Error unarchiving project:', error);

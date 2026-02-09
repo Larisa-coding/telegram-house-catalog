@@ -419,23 +419,30 @@
         const data = await res.json();
         if (data.success) {
           loadProjects();
-          if (typeof loadArchived === 'function') loadArchived();
+          loadArchived();
         } else {
-          alert(data.error || 'Ошибка');
+          alert(data.error || 'Ошибка архивирования');
         }
       } catch (e) {
-        alert('Ошибка сети');
+        alert('Ошибка сети: ' + e.message);
+        console.error('Archive error:', e);
       }
       btn.disabled = false;
     };
 
     const loadArchived = async () => {
       const list = document.getElementById('archived-list');
+      if (!list) return;
       list.innerHTML = '<p style="color:#64748b;">Загрузка...</p>';
       try {
         const res = await fetch(`${API_URL}/projects/archived`);
         const data = await res.json();
-        if (data.success && data.data?.length > 0) {
+        if (!data.success) {
+          list.innerHTML = `<p style="color:#b91c1c;">Ошибка: ${data.error || 'Неизвестная ошибка'}</p>`;
+          console.error('Archive API error:', data);
+          return;
+        }
+        if (data.data && Array.isArray(data.data) && data.data.length > 0) {
           list.innerHTML = `
             <table class="admin-table">
               <thead>
@@ -460,7 +467,8 @@
           list.innerHTML = '<p style="color:#64748b;">Архив пуст</p>';
         }
       } catch (err) {
-        list.innerHTML = '<p style="color:#b91c1c;">Ошибка загрузки</p>';
+        list.innerHTML = `<p style="color:#b91c1c;">Ошибка загрузки: ${err.message}</p>`;
+        console.error('Archive load error:', err);
       }
     };
 
@@ -664,6 +672,7 @@
     document.getElementById('load-archived-btn').addEventListener('click', loadArchived);
     document.getElementById('load-users-btn').addEventListener('click', loadUsers);
     loadUsers();
+    loadArchived(); // Автоматически загружаем архив при открытии страницы
   </script>
 </body>
 </html>
